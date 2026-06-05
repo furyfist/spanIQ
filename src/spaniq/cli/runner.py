@@ -183,6 +183,40 @@ def _monitor_run(args: argparse.Namespace) -> None:
     monitor.run(max_traces=args.max_traces)
 
 
+def _timeline_show(args: argparse.Namespace) -> None:
+    from spaniq.monitor.timeline_store import TimelineStore
+    from spaniq.monitor.visualize import print_sparkline
+
+    store = TimelineStore(args.db)
+    print_sparkline(store, args.metric, last_n=args.last)
+
+
+def _timeline_export(args: argparse.Namespace) -> None:
+    from spaniq.monitor.timeline_store import TimelineStore
+    from spaniq.monitor.visualize import export_timeline_png
+    from rich.console import Console
+
+    store = TimelineStore(args.db)
+    out = export_timeline_png(store, args.metric, output_path=args.output, last_n=args.last)
+    Console().print(f"[green]saved:[/green] {out}")
+
+
+def _timeline_summary(args: argparse.Namespace) -> None:
+    from spaniq.monitor.timeline_store import TimelineStore
+    from rich.console import Console
+
+    store = TimelineStore(args.db)
+    s = store.summary(args.metric, last_n=args.last)
+    console = Console()
+    trend_label = "stable" if abs(s.trend) < 0.001 else ("worsening ↑" if s.trend > 0 else "improving ↓")
+    console.print(f"\n[bold]{s.metric_name}[/bold] (last {s.n} traces)")
+    console.print(f"  mean:      {s.mean_score:.4f}")
+    console.print(f"  std:       {s.std_score:.4f}")
+    console.print(f"  min/max:   {s.min_score:.4f} / {s.max_score:.4f}")
+    console.print(f"  pass rate: {s.pass_rate * 100:.1f}%")
+    console.print(f"  trend:     {s.trend:+.6f}/trace ({trend_label})\n")
+
+
 # ── parser ────────────────────────────────────────────────────────────────────
 
 
@@ -229,6 +263,24 @@ def _build_parser() -> argparse.ArgumentParser:
     run_mon.add_argument("--alerts-path", default="alerts.jsonl", dest="alerts_path")
     run_mon.add_argument("--max-traces", type=int, default=None, dest="max_traces")
 
+    # ── timeline ──────────────────────────────────────────────────────────────
+    tl_p = sub.add_parser("timeline", help="inspect the score timeline")
+    tl_p.add_argument("--db", default="spaniq.db")
+    tl_sub = tl_p.add_subparsers(dest="timeline_command")
+
+    show_tl = tl_sub.add_parser("show", help="print sparkline to terminal")
+    show_tl.add_argument("--metric", required=True)
+    show_tl.add_argument("--last", type=int, default=50)
+
+    export_tl = tl_sub.add_parser("export", help="export PNG chart")
+    export_tl.add_argument("--metric", required=True)
+    export_tl.add_argument("--last", type=int, default=200)
+    export_tl.add_argument("--output", default="timeline.png")
+
+    summary_tl = tl_sub.add_parser("summary", help="print aggregate stats")
+    summary_tl.add_argument("--metric", required=True)
+    summary_tl.add_argument("--last", type=int, default=200)
+
     return parser
 
 
@@ -264,6 +316,18 @@ def main() -> None:
             _monitor_run(args)
         else:
             parser.parse_args(["monitor", "--help"])
+
+    elif args.command == "timeline":
+        if not hasattr(args, "db"):
+            args.db = "spaniq.db"
+        if args.timeline_command == "show":
+            _timeline_show(args)
+        elif args.timeline_command == "export":
+            _timeline_export(args)
+        elif args.timeline_command == "summary":
+            _timeline_summary(args)
+        else:
+            parser.parse_args(["timeline", "--help"])
 
     else:
         parser.print_help()
