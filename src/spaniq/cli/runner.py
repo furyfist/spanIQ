@@ -281,6 +281,14 @@ def _build_parser() -> argparse.ArgumentParser:
     summary_tl.add_argument("--metric", required=True)
     summary_tl.add_argument("--last", type=int, default=200)
 
+    # ── demo ──────────────────────────────────────────────────────────────────
+    demo_p = sub.add_parser("demo", help="run reproducible replay demos")
+    demo_sub = demo_p.add_subparsers(dest="demo_command")
+
+    for name in ["prompt-injection", "model-swap", "rag-breakage", "run-all"]:
+        dp = demo_sub.add_parser(name, help=f"run {name} demo")
+        dp.add_argument("--offline", action="store_true", help="use pre-generated fixtures")
+
     return parser
 
 
@@ -328,6 +336,27 @@ def main() -> None:
             _timeline_summary(args)
         else:
             parser.parse_args(["timeline", "--help"])
+
+    elif args.command == "demo":
+        offline = getattr(args, "offline", False)
+        if args.demo_command == "prompt-injection":
+            from spaniq.demos.prompt_injection import run
+            run(offline=offline)
+        elif args.demo_command == "model-swap":
+            from spaniq.demos.model_swap import run
+            run(offline=offline)
+        elif args.demo_command == "rag-breakage":
+            from spaniq.demos.rag_breakage import run
+            run(offline=offline)
+        elif args.demo_command == "run-all":
+            from spaniq.demos.prompt_injection import run as run_pi
+            from spaniq.demos.model_swap import run as run_ms
+            from spaniq.demos.rag_breakage import run as run_rag
+            run_pi(offline=offline)
+            run_ms(offline=offline)
+            run_rag(offline=offline)
+        else:
+            parser.parse_args(["demo", "--help"])
 
     else:
         parser.print_help()
