@@ -162,9 +162,10 @@ class BaselineStore:
     def delete(self, baseline_id: str) -> None:
         with self._conn() as conn:
             conn.execute("DELETE FROM baselines WHERE id = ?", (baseline_id,))
-            # cascade to timeline rows if table exists
-            conn.execute(
-                "DELETE FROM timeline WHERE baseline_id = ? "
-                "AND EXISTS (SELECT 1 FROM sqlite_master WHERE type='table' AND name='timeline')",
-                (baseline_id,),
-            )
+            has_timeline = conn.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='timeline'"
+            ).fetchone()
+            if has_timeline:
+                conn.execute(
+                    "DELETE FROM timeline WHERE baseline_id = ?", (baseline_id,)
+                )
