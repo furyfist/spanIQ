@@ -25,9 +25,12 @@ dependencies = [
     "scipy>=1.11.0",
     "sentence-transformers>=3.0.0",
     "rich>=13.0.0",
+    "matplotlib>=3.8.0",
 ]
 
 [project.optional-dependencies]
+langfuse = ["langfuse>=4.0.0"]
+groq = ["groq>=1.0.0"]
 dev = [
     "pytest>=8.0",
     "pytest-xdist>=3.5",
