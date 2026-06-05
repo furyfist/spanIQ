@@ -4,7 +4,7 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-Deterministic LLM evaluation without LLM-as-judge. Zero API cost. Fully reproducible scores.
+Deterministic LLM evaluation and production monitoring without LLM-as-judge. Zero API cost. Fully reproducible scores.
 
 1,000 test cases × 3 metrics → **$0.00** and **4 seconds** instead of **$34.20** and **9,000 API calls**.
 
@@ -12,9 +12,17 @@ Deterministic LLM evaluation without LLM-as-judge. Zero API cost. Fully reproduc
 
 ```bash
 pip install spaniq
+
+# optional: Langfuse trace ingestion
+pip install spaniq[langfuse]
+
+# optional: Groq-based baseline collection and demos
+pip install spaniq[groq]
 ```
 
-## Quickstart
+## V1 — Offline Evaluation
+
+### Quickstart
 
 ```python
 from spaniq import LLMTestCase, evaluate
@@ -44,7 +52,7 @@ Output:
  failed:          0/1
 ```
 
-## pytest Integration
+### pytest Integration
 
 ```python
 from spaniq import LLMTestCase, assert_eval
@@ -64,6 +72,99 @@ Run with:
 spaniq test run tests/
 ```
 
+## V2 — Production Monitoring
+
+V2 adds continuous monitoring of live LLM outputs against stored baselines. Detects prompt injection, model swaps, and RAG breakage in real-time at $0/trace.
+
+### 10-line example
+
+```python
+from spaniq.monitor import BaselineStore, Monitor
+from spaniq.monitor.collectors.file import FileCollector
+
+# 1. collect a baseline (once)
+store = BaselineStore()
+store.create(
+    name="refund-v1",
+    prompt="what is your refund policy?",
+    outputs=["we offer 30-day refunds"] * 20,
+)
+
+# 2. run the monitor against your trace file
+monitor = Monitor(
+    baseline_name="refund-v1",
+    collector=FileCollector("traces.jsonl"),
+    alert_after=3,
+)
+report = monitor.run()
+print(f"{report.total_traces} traces, {report.alerts_fired} alerts")
+```
+
+### Baseline collection CLI
+
+```bash
+# collect 50 baseline outputs from Groq
+spaniq baseline collect --name refund-v1 --prompt "what is your refund policy?" --n 50
+
+# list all baselines
+spaniq baseline list
+
+# inspect a baseline
+spaniq baseline show refund-v1
+```
+
+### Monitor CLI
+
+```bash
+# run monitor against a JSONL trace file
+spaniq monitor run --baseline refund-v1 --source file --path traces.jsonl
+
+# run monitor polling Langfuse every 30s
+spaniq monitor run --baseline refund-v1 --source langfuse --poll-interval 30
+
+# custom alert threshold and metrics
+spaniq monitor run --baseline refund-v1 --source file --path traces.jsonl \
+  --alert-after 5 --metrics ResponseDrift,SemanticSimilarity
+```
+
+JSONL trace format:
+```json
+{"input": "what is your refund policy?", "output": "we offer 30-day refunds", "timestamp": "2024-01-01T00:00:00+00:00"}
+```
+
+### Timeline CLI
+
+```bash
+# terminal sparkline of recent scores
+spaniq timeline show --metric ResponseDriftMetric --last 50
+
+# export PNG chart
+spaniq timeline export --metric ResponseDriftMetric --last 200 --output drift.png
+
+# aggregate statistics
+spaniq timeline summary --metric ResponseDriftMetric --last 200
+```
+
+### Replay Demos
+
+Three reproducible demos that show the monitoring in action. Run offline with pre-generated fixtures (no API key needed):
+
+```bash
+# demo 1: prompt injection → pirate persona → vocabulary drift detected
+spaniq demo prompt-injection --offline
+
+# demo 2: model swap 70B → 8B → structural change detected
+spaniq demo model-swap --offline
+
+# demo 3: RAG retrieval failure → hedging words → semantic drift detected
+spaniq demo rag-breakage --offline
+
+# run all three
+spaniq demo run-all --offline
+```
+
+With `GROQ_API_KEY` set, omit `--offline` to generate fresh outputs from the Groq free tier.
+
 ## Metrics
 
 | Metric | Method | Detects | Requires |
@@ -79,6 +180,20 @@ spaniq test run tests/
 |---|---|---|---|
 | deepeval / ragas | ~$34/run | No | No |
 | **spaniq** | **$0.00** | **Yes** | **Yes** |
+
+## Architecture
+
+```
+V1 (eval):
+  LLMTestCase → metrics → evaluate() → EvalResult
+
+V2 (monitoring, built on V1):
+  Trace Source → Collector → LLMTestCase → Monitor → metrics → TimelineStore → AlertEngine
+       ↑                          ↑
+  langfuse API              BaselineStore
+  JSONL file                (baseline_outputs)
+  direct SDK
+```
 
 ## When spanIQ Is Not the Right Tool
 
