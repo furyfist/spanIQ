@@ -113,7 +113,6 @@ def _baseline_list(args: argparse.Namespace) -> None:
 def _baseline_show(args: argparse.Namespace) -> None:
     from spaniq.monitor.baseline_store import BaselineStore
     from rich.console import Console
-    from rich import print as rprint
     import json
 
     store = BaselineStore(args.db)
@@ -132,9 +131,56 @@ def _baseline_show(args: argparse.Namespace) -> None:
     console.print(f"  updated:     {b.updated_at}")
     console.print(f"\n[bold]prompt:[/bold] {b.prompt_text}\n")
     outputs = json.loads(b.outputs)
-    console.print(f"[bold]sample outputs (first 3):[/bold]")
+    console.print("[bold]sample outputs (first 3):[/bold]")
     for i, o in enumerate(outputs[:3], 1):
         console.print(f"  [{i}] {o[:120]}")
+
+
+def _monitor_run(args: argparse.Namespace) -> None:
+    from spaniq.monitor.collectors.file import FileCollector
+    from spaniq.monitor.monitor import Monitor
+
+    if args.source == "langfuse":
+        try:
+            from spaniq.monitor.collectors.langfuse import LangfuseCollector
+        except ImportError:
+            print("error: langfuse SDK not installed — run: pip install spaniq[langfuse]", file=sys.stderr)
+            sys.exit(1)
+        collector = LangfuseCollector(poll_interval=args.poll_interval)
+    elif args.source == "file":
+        if not args.path:
+            print("error: --path is required when --source file", file=sys.stderr)
+            sys.exit(1)
+        collector = FileCollector(args.path)
+    else:
+        print(f"error: unknown source '{args.source}'", file=sys.stderr)
+        sys.exit(1)
+
+    metrics = None
+    if args.metrics:
+        from spaniq.metrics.response_drift import ResponseDriftMetric
+        from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
+        from spaniq.metrics.output_stability import OutputStabilityMetric
+        from spaniq.metrics.consistency import ConsistencyMetric
+
+        metric_map = {
+            "ResponseDrift": ResponseDriftMetric(),
+            "SemanticSimilarity": SemanticSimilarityMetric(),
+            "OutputStability": OutputStabilityMetric(),
+            "Consistency": ConsistencyMetric(),
+        }
+        names = [n.strip() for n in args.metrics.split(",")]
+        metrics = [metric_map[n] for n in names if n in metric_map]
+
+    monitor = Monitor(
+        baseline_name=args.baseline,
+        collector=collector,
+        metrics=metrics,
+        db_path=args.db,
+        alert_after=args.alert_after,
+        alerts_path=args.alerts_path,
+    )
+    monitor.run(max_traces=args.max_traces)
 
 
 # ── parser ────────────────────────────────────────────────────────────────────
@@ -168,6 +214,21 @@ def _build_parser() -> argparse.ArgumentParser:
     show_p = bl_sub.add_parser("show", help="inspect a baseline")
     show_p.add_argument("name", help="baseline name")
 
+    # ── monitor ───────────────────────────────────────────────────────────────
+    mon_p = sub.add_parser("monitor", help="run production monitoring")
+    mon_p.add_argument("--db", default="spaniq.db")
+    mon_sub = mon_p.add_subparsers(dest="monitor_command")
+
+    run_mon = mon_sub.add_parser("run", help="run monitor loop")
+    run_mon.add_argument("--baseline", required=True, help="baseline name")
+    run_mon.add_argument("--source", choices=["file", "langfuse"], default="file")
+    run_mon.add_argument("--path", default=None, help="JSONL file path (file source)")
+    run_mon.add_argument("--poll-interval", type=int, default=30, dest="poll_interval")
+    run_mon.add_argument("--metrics", default=None, help="comma-separated metric names")
+    run_mon.add_argument("--alert-after", type=int, default=3, dest="alert_after")
+    run_mon.add_argument("--alerts-path", default="alerts.jsonl", dest="alerts_path")
+    run_mon.add_argument("--max-traces", type=int, default=None, dest="max_traces")
+
     return parser
 
 
@@ -185,7 +246,6 @@ def main() -> None:
             parser.parse_args(["test", "--help"])
 
     elif args.command == "baseline":
-        # propagate --db to sub-namespace
         if not hasattr(args, "db"):
             args.db = "spaniq.db"
         if args.baseline_command == "collect":
@@ -196,6 +256,14 @@ def main() -> None:
             _baseline_show(args)
         else:
             parser.parse_args(["baseline", "--help"])
+
+    elif args.command == "monitor":
+        if not hasattr(args, "db"):
+            args.db = "spaniq.db"
+        if args.monitor_command == "run":
+            _monitor_run(args)
+        else:
+            parser.parse_args(["monitor", "--help"])
 
     else:
         parser.print_help()
