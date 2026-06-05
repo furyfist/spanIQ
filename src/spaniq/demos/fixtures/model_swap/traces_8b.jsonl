@@ -1,0 +1,20 @@
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "Reverse string: s[::-1]"}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "Use s[::-1] to reverse."}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "def rev(s): return s[::-1]"}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "Slicing with -1 step reverses."}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "s[::-1] gives reversed string."}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "def reverse(s): return s[::-1] # reverse"}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "Use reversed(s) or s[::-1]."}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "String reversal: s[::-1]"}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "def r(s): return s[::-1]"}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "Slice -1 step reverses string."}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "s[::-1] is the answer."}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "def rev(s): return \"\".join(reversed(s))"}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "Use [::-1] slice."}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "Reversed: s[::-1]"}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "def reverse_string(s): return s[::-1]"}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "s[::-1] iterates backward."}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "Reverse with s[::-1]."}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "def f(s): return s[::-1]"}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "Step -1 reverses the string."}
+{"input": "Write a short Python function that reverses a string and explain how it works.", "output": "Use s[::-1] for reversal."}
