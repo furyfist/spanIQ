@@ -1,4 +1,4 @@
 rag breakage demo
 traces: 40
-alerts: 83
-pass rates: {'ResponseDriftMetric': 0.0, 'SemanticSimilarityMetric': 0.65, 'OutputStabilityMetric': 0.0}
+alerts: 58
+pass rates: {'ResponseDriftMetric': 0.5, 'SemanticSimilarityMetric': 0.65, 'OutputStabilityMetric': 0.075}
