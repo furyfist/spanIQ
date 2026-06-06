@@ -22,6 +22,9 @@ MODEL_8B = "llama-3.1-8b-instant"
 
 
 def run(offline: bool = False, db_path: str = "spaniq_demo_swap.db") -> None:
+    from spaniq.metrics.output_stability import OutputStabilityMetric
+    from spaniq.metrics.response_drift import ResponseDriftMetric
+    from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
     from spaniq.monitor.baseline_store import BaselineStore
     from spaniq.monitor.collectors.file import FileCollector
     from spaniq.monitor.monitor import Monitor
@@ -81,6 +84,11 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_swap.db") -> None:
     monitor = Monitor(
         baseline_name="swap-demo",
         collector=FileCollector(str(traces_path)),
+        metrics=[
+            ResponseDriftMetric(threshold=0.1, window_size=10),
+            SemanticSimilarityMetric(),
+            OutputStabilityMetric(threshold=0.15, window_size=10),
+        ],
         db_path=db_path,
         alert_after=3,
         alerts_path=str(OUTPUT_DIR / "model_swap_alerts.jsonl"),
