@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from collections import deque
+
 import numpy as np
 
 from spaniq.core.test_case import LLMTestCase
@@ -6,31 +10,42 @@ from spaniq.statistical.js import compute_js
 
 
 class OutputStabilityMetric(BaseMetric):
-    """JS divergence on structural features between actual_output and baseline_outputs.
+    """Rolling-window JS divergence on structural features vs baseline corpus.
 
     Features: char count, word count, sentence count, avg word length.
-    Detects length/structure changes without semantic analysis.
+    Maintains a window of the last window_size outputs and compares the
+    aggregate feature distribution against the baseline corpus.
     JS < threshold passes (lower = more stable).
     """
 
-    def __init__(self, threshold: float = 0.15):
+    def __init__(self, threshold: float = 0.15, window_size: int = 20):
         super().__init__(threshold=threshold)
+        self.window_size = window_size
+        self._window: deque[str] = deque(maxlen=window_size)
 
     def measure(self, test_case: LLMTestCase) -> float:
         if not test_case.baseline_outputs:
             raise ValueError("OutputStabilityMetric requires baseline_outputs")
 
-        current = self._extract_features(test_case.actual_output)
+        self._window.append(test_case.actual_output)
+
+        if len(self._window) < 3:
+            self.score = 0.0
+            self.reason = f"warming up ({len(self._window)}/{self.window_size} traces)"
+            return self.score
+
         baseline = np.array([self._extract_features(o) for o in test_case.baseline_outputs])
+        window_outputs = list(self._window)
+        current = np.array([self._extract_features(o) for o in window_outputs])
 
         scores = []
-        for i in range(current.shape[0]):
+        for i in range(baseline.shape[1]):
             baseline_col = baseline[:, i]
-            current_arr = np.array([current[i]])
-            if baseline_col.max() == baseline_col.min():
-                scores.append(0.0 if current[i] == baseline_col[0] else 1.0)
+            current_col = current[:, i]
+            if baseline_col.max() == baseline_col.min() and current_col.max() == current_col.min():
+                scores.append(0.0 if baseline_col[0] == current_col[0] else 1.0)
             else:
-                scores.append(compute_js(baseline_col, current_arr))
+                scores.append(compute_js(baseline_col, current_col))
 
         self.score = float(np.mean(scores))
         op = "<" if self.is_successful() else ">="
