@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
-from spaniq.core.evaluate import evaluate
+from spaniq.core.eval_result import MetricResult
 from spaniq.core.test_case import LLMTestCase
 from spaniq.metrics.base import BaseMetric
 from spaniq.metrics.output_stability import OutputStabilityMetric
@@ -104,8 +104,16 @@ class Monitor:
             actual_output=trace.output,
             baseline_outputs=self._baseline_outputs,
         )
-        result = evaluate([tc], self.metrics, verbose=False)
-        mr_list = result.test_case_results[0].metric_results
+        mr_list = []
+        for metric in self.metrics:
+            score = metric.measure(tc)
+            mr_list.append(MetricResult(
+                metric_name=metric.name,
+                score=score,
+                threshold=metric.threshold,
+                passed=metric.is_successful(),
+                reason=metric.reason,
+            ))
 
         for mr in mr_list:
             self.timeline_store.record(
