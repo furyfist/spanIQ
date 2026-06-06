@@ -6,7 +6,26 @@ import numpy as np
 
 from spaniq.core.test_case import LLMTestCase
 from spaniq.metrics.base import BaseMetric
-from spaniq.statistical.psi import compute_psi
+
+
+def _discrete_psi(baseline_freq: dict[str, int], current_freq: dict[str, int]) -> float:
+    """PSI between two discrete token frequency distributions.
+
+    Bypasses histogram binning — the distributions are already discrete.
+    PSI < 0.1: no drift, 0.1-0.25: moderate, >0.25: significant.
+    """
+    all_tokens = list(set(baseline_freq) | set(current_freq))
+    eps = 1e-6
+
+    baseline_total = sum(baseline_freq.values()) + eps * len(all_tokens)
+    current_total = sum(current_freq.values()) + eps * len(all_tokens)
+
+    psi = 0.0
+    for t in all_tokens:
+        b = (baseline_freq.get(t, 0) + eps) / baseline_total
+        c = (current_freq.get(t, 0) + eps) / current_total
+        psi += (c - b) * np.log(c / b)
+    return float(psi)
 
 
 class ResponseDriftMetric(BaseMetric):
@@ -36,11 +55,7 @@ class ResponseDriftMetric(BaseMetric):
         baseline_dist = self._token_frequencies(" ".join(test_case.baseline_outputs))
         current_dist = self._token_frequencies(" ".join(self._window))
 
-        all_tokens = list(set(baseline_dist) | set(current_dist))
-        baseline_vec = np.array([baseline_dist.get(t, 0) for t in all_tokens], dtype=float)
-        current_vec = np.array([current_dist.get(t, 0) for t in all_tokens], dtype=float)
-
-        self.score = compute_psi(baseline_vec, current_vec)
+        self.score = _discrete_psi(baseline_dist, current_dist)
         op = "<" if self.is_successful() else ">="
         self.reason = f"PSI {self.score:.4f} {op} threshold {self.threshold}"
         return self.score

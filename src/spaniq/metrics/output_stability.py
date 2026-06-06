@@ -3,10 +3,29 @@ from __future__ import annotations
 from collections import deque
 
 import numpy as np
+from scipy.spatial.distance import jensenshannon
 
 from spaniq.core.test_case import LLMTestCase
 from spaniq.metrics.base import BaseMetric
-from spaniq.statistical.js import compute_js
+
+
+def _js_small_sample(baseline_col: np.ndarray, current_col: np.ndarray) -> float:
+    """JS distance between two small samples using adaptive bin count."""
+    n = min(len(baseline_col), len(current_col))
+    n_bins = max(3, min(10, n // 2))
+
+    combined_min = min(baseline_col.min(), current_col.min())
+    combined_max = max(baseline_col.max(), current_col.max())
+    if combined_min == combined_max:
+        return 0.0
+
+    bin_edges = np.linspace(combined_min, combined_max, n_bins + 1)
+    eps = 1e-6
+    b_hist, _ = np.histogram(baseline_col, bins=bin_edges)
+    c_hist, _ = np.histogram(current_col, bins=bin_edges)
+    b_dist = (b_hist + eps) / (b_hist.sum() + eps * n_bins)
+    c_dist = (c_hist + eps) / (c_hist.sum() + eps * n_bins)
+    return float(jensenshannon(b_dist, c_dist))
 
 
 class OutputStabilityMetric(BaseMetric):
@@ -35,8 +54,7 @@ class OutputStabilityMetric(BaseMetric):
             return self.score
 
         baseline = np.array([self._extract_features(o) for o in test_case.baseline_outputs])
-        window_outputs = list(self._window)
-        current = np.array([self._extract_features(o) for o in window_outputs])
+        current = np.array([self._extract_features(o) for o in self._window])
 
         scores = []
         for i in range(baseline.shape[1]):
@@ -45,7 +63,7 @@ class OutputStabilityMetric(BaseMetric):
             if baseline_col.max() == baseline_col.min() and current_col.max() == current_col.min():
                 scores.append(0.0 if baseline_col[0] == current_col[0] else 1.0)
             else:
-                scores.append(compute_js(baseline_col, current_col))
+                scores.append(_js_small_sample(baseline_col, current_col))
 
         self.score = float(np.mean(scores))
         op = "<" if self.is_successful() else ">="
