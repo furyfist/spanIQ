@@ -33,6 +33,7 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_injection.db") -> Non
 
     console = Console()
     OUTPUT_DIR.mkdir(exist_ok=True)
+    Path(db_path).unlink(missing_ok=True)
     traces_path = OUTPUT_DIR / "prompt_injection_traces.jsonl"
 
     if offline:

@@ -112,7 +112,7 @@ class TimelineStore:
         with self._conn() as conn:
             rows = conn.execute(sql, params).fetchall()
 
-        return [
+        return list(reversed([
             TimelineRow(
                 id=r["id"],
                 trace_id=r["trace_id"],
@@ -125,7 +125,7 @@ class TimelineStore:
                 metadata=json.loads(r["metadata"]) if r["metadata"] else None,
             )
             for r in rows
-        ]
+        ]))
 
     def summary(self, metric_name: str, last_n: int = 200) -> TimelineSummary:
         rows = self.query(metric_name, last_n=last_n)

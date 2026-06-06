@@ -33,6 +33,7 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_swap.db") -> None:
 
     console = Console()
     OUTPUT_DIR.mkdir(exist_ok=True)
+    Path(db_path).unlink(missing_ok=True)
     traces_path = OUTPUT_DIR / "model_swap_traces.jsonl"
 
     if offline:

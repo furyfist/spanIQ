@@ -38,6 +38,7 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_rag.db") -> None:
 
     console = Console()
     OUTPUT_DIR.mkdir(exist_ok=True)
+    Path(db_path).unlink(missing_ok=True)
     traces_path = OUTPUT_DIR / "rag_breakage_traces.jsonl"
 
     if offline:
