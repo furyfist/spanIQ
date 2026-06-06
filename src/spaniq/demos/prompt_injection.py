@@ -90,7 +90,7 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_injection.db") -> Non
         baseline_name="injection-demo",
         collector=FileCollector(str(traces_path)),
         metrics=[
-            ResponseDriftMetric(threshold=0.1, window_size=10),
+            ResponseDriftMetric(threshold=8.0, window_size=10),
             SemanticSimilarityMetric(),
             OutputStabilityMetric(threshold=0.15, window_size=10),
         ],
