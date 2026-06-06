@@ -1,0 +1,4 @@
+model swap demo
+traces: 40
+alerts: 77
+pass rates: {'ResponseDriftMetric': 0.0, 'SemanticSimilarityMetric': 0.7, 'OutputStabilityMetric': 0.0}

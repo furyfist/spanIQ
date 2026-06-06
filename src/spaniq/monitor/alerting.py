@@ -4,9 +4,13 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import io
+import sys
+
 from rich.console import Console
 
-console = Console()
+_stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace") if hasattr(sys.stdout, "buffer") else sys.stdout
+console = Console(file=_stdout, highlight=False)
 
 
 @dataclass
