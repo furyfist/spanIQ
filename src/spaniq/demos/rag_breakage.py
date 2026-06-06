@@ -27,6 +27,9 @@ MODEL = "llama-3.3-70b-versatile"
 
 
 def run(offline: bool = False, db_path: str = "spaniq_demo_rag.db") -> None:
+    from spaniq.metrics.output_stability import OutputStabilityMetric
+    from spaniq.metrics.response_drift import ResponseDriftMetric
+    from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
     from spaniq.monitor.baseline_store import BaselineStore
     from spaniq.monitor.collectors.file import FileCollector
     from spaniq.monitor.monitor import Monitor
@@ -86,6 +89,11 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_rag.db") -> None:
     monitor = Monitor(
         baseline_name="rag-demo",
         collector=FileCollector(str(traces_path)),
+        metrics=[
+            ResponseDriftMetric(threshold=0.1, window_size=10),
+            SemanticSimilarityMetric(),
+            OutputStabilityMetric(threshold=0.15, window_size=10),
+        ],
         db_path=db_path,
         alert_after=3,
         alerts_path=str(OUTPUT_DIR / "rag_breakage_alerts.jsonl"),
