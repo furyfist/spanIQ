@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import json
-import pytest
+
 from spaniq.monitor.baseline_store import BaselineStore
 from spaniq.monitor.collectors.file import FileCollector
 from spaniq.monitor.monitor import Monitor

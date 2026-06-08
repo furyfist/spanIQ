@@ -165,6 +165,100 @@ spaniq demo run-all --offline
 
 With `GROQ_API_KEY` set, omit `--offline` to generate fresh outputs from the Groq free tier.
 
+---
+
+## What the demos actually show
+
+This section walks through what spanIQ caught in each demo — no LLM involved, just math on top of your traces.
+
+Each demo runs 40 traces: 20 normal, then 20 where something breaks. The charts show how the scores evolve trace-by-trace. The red dashed line is the alert threshold. Red shading means an alert fired.
+
+---
+
+### Demo 1 — Prompt Injection
+
+**What happened:** A support agent's system prompt was hijacked and replaced with a pirate persona. The agent starts responding with pirate vocabulary instead of normal support language.
+
+**Why this is hard to catch manually:** The LLM still returns coherent, grammatical text. It just sounds completely different. A human reviewer looking at individual traces might not notice the shift unless they're comparing against what "normal" looks like.
+
+**What spanIQ caught:**
+
+Two independent metrics, both triggered at trace 20.
+
+**ResponseDriftMetric (PSI — vocabulary distribution)**
+
+PSI measures how much the word frequency distribution shifted compared to baseline. Scores below the threshold (8.0) are normal. At trace 20, as the injected traces start coming in, PSI climbs from ~7 to 23 and keeps going. The model's vocabulary has completely changed.
+
+![Prompt Injection — ResponseDrift](src/spaniq/demos/output/prompt_injection_timeline.png)
+
+**SemanticSimilarityMetric (cosine similarity via MiniLM)**
+
+Cosine similarity measures whether the meaning of the response is still close to baseline. Pre-injection: scores hover 0.75–0.93. Post-injection: they collapse to 0.20–0.45. The agent is saying semantically different things.
+
+![Prompt Injection — Semantic Similarity](src/spaniq/demos/output/prompt_injection_semantic.png)
+
+**Result:** 72 alerts across 40 traces. Pass rate dropped to 50% on ResponseDrift, 50% on Semantic, and 5% on OutputStability. Two independent detectors caught the same event — neither needed to know what "pirate" means.
+
+---
+
+### Demo 2 — Silent Model Swap
+
+**What happened:** The team swapped the backend model from a 70B to an 8B without updating monitoring. The smaller model produces shorter, blunter, less structured responses to the same prompts.
+
+**Why this is hard to catch manually:** The outputs are still on-topic and grammatically correct. No obvious errors. Just... subtly different. This kind of silent regression is exactly what causes support quality to degrade over weeks without anyone noticing.
+
+**What spanIQ caught:**
+
+**ResponseDriftMetric (PSI)**
+
+For the first 20 traces (70B), PSI holds flat below 2.0 — the model is consistent. At trace 24, the 8B model starts responding. PSI climbs steadily through the threshold (4.0) and plateaus around 14. The vocabulary distribution shifted and stayed shifted.
+
+![Model Swap — ResponseDrift](src/spaniq/demos/output/model_swap_drift.png)
+
+**OutputStabilityMetric (JS divergence on structural features)**
+
+This metric tracks structural features — response length, sentence count, formatting patterns. The smaller model produces structurally different outputs: shorter, less detailed. The score climbs from ~0.15 to 0.60+ after the swap and never comes back down.
+
+![Model Swap — OutputStability](src/spaniq/demos/output/model_swap_stability.png)
+
+**Result:** 43 alerts across 40 traces. The swap was caught at trace 24. No one had to manually compare 70B vs 8B outputs.
+
+---
+
+### Demo 3 — RAG Retrieval Failure
+
+**What happened:** The retrieval system broke at trace 20. The LLM stopped receiving relevant context and started generating hedging responses ("I'm not sure", "it depends", "I don't have enough information") instead of direct, grounded answers.
+
+**Why this is hard to catch manually:** The LLM doesn't error. It doesn't hallucinate wildly. It just becomes vague and uncertain — which looks plausible until you notice it's happening on every single query. By that time, users have already had a bad experience for hours.
+
+**What spanIQ caught:**
+
+**SemanticSimilarityMetric**
+
+When retrieval works, every response is semantically close to the baseline: scores hold at 0.93–0.96. At trace 20, retrieval fails. Scores drop immediately to 0.60–0.70 and never recover. The LLM is saying different things because it has nothing to say.
+
+![RAG Breakage — Semantic Similarity](src/spaniq/demos/output/rag_breakage_semantic.png)
+
+**ResponseDriftMetric (PSI)**
+
+PSI tells the same story from the vocabulary angle. Hedging words ("perhaps", "I'm not sure", "it depends") weren't in the baseline distribution. PSI sits near 0 for traces 0–19, then climbs sharply past 20 and plateaus around 22.
+
+![RAG Breakage — ResponseDrift](src/spaniq/demos/output/rag_breakage_drift.png)
+
+**Result:** 58 alerts across 40 traces. Retrieval failure detected at trace 20 — the exact moment it happened.
+
+---
+
+### Summary
+
+| Demo | Failure mode | Detected at | Alerts | Cost |
+|---|---|---|---|---|
+| Prompt injection | System prompt hijack | Trace 20 | 72 | $0.00 |
+| Model swap | 70B → 8B backend change | Trace 24 | 43 | $0.00 |
+| RAG breakage | Retrieval context lost | Trace 20 | 58 | $0.00 |
+
+Six charts. Three failure modes. Zero API calls. The signal comes from comparing distributions, not from asking another LLM whether something looks wrong.
+
 ## Metrics
 
 | Metric | Method | Detects | Requires |

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
-from datetime import datetime, timezone, timedelta
+
 from spaniq.monitor.timeline_store import TimelineStore
 from spaniq.monitor.visualize import export_timeline_png, print_sparkline
 
@@ -44,9 +46,8 @@ def test_export_png_valid_image(tmp_path, populated_store):
     assert header[:4] == b"\x89PNG"
 
 
-def test_sparkline_output_contains_blocks(populated_store, capsys):
+def test_sparkline_output_contains_blocks(populated_store):
     print_sparkline(populated_store, "ResponseDriftMetric", last_n=20)
-    captured = capsys.readouterr()
     # rich writes to its own console; check no exception was raised
     # and function runs without error (rich Console captures internally)
     # just assert it doesn't crash — integration tested via CLI

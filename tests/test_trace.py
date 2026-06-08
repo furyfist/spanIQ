@@ -1,5 +1,5 @@
 import re
-from datetime import timezone
+
 from spaniq.monitor.trace import Trace
 
 
