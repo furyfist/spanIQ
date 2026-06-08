@@ -66,10 +66,9 @@ def test_full_monitoring_pipeline(tmp_path):
     assert len(rows) == 20
 
     # 6. first 10 (normal) should have a higher pass rate than last 10 (drifted)
-    # rows are DESC by timestamp, so rows[-10:] are the earliest (normal) traces
-    # and rows[:10] are the latest (drifted) traces
-    drifted_rows = rows[:10]
-    normal_rows = rows[10:]
+    # query() returns rows ascending by timestamp, so rows[:10] are normal traces
+    normal_rows = rows[:10]
+    drifted_rows = rows[10:]
     drifted_pass_rate = sum(r.passed for r in drifted_rows) / 10
     normal_pass_rate = sum(r.passed for r in normal_rows) / 10
     assert normal_pass_rate >= drifted_pass_rate
