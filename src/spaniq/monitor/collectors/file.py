@@ -3,8 +3,8 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Iterator
 from datetime import datetime, timezone
-from typing import Iterator
 from uuid import uuid4
 
 from spaniq.monitor.collectors.base import BaseCollector

@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Iterator
 from datetime import datetime, timezone
-from typing import Iterator
 
 from spaniq.monitor.collectors.base import BaseCollector
 from spaniq.monitor.trace import Trace
@@ -86,6 +86,9 @@ class LangfuseCollector(BaseCollector):
                 self._cursor = new_cursor
 
             if not observations:
-                logger.debug("LangfuseCollector: no new observations, sleeping %ds", self.poll_interval)
+                logger.debug(
+                    "LangfuseCollector: no new observations, sleeping %ds",
+                    self.poll_interval,
+                )
 
             time.sleep(self.poll_interval)

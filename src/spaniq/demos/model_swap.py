@@ -22,6 +22,8 @@ MODEL_8B = "llama-3.1-8b-instant"
 
 
 def run(offline: bool = False, db_path: str = "spaniq_demo_swap.db") -> None:
+    from rich.console import Console
+
     from spaniq.metrics.output_stability import OutputStabilityMetric
     from spaniq.metrics.response_drift import ResponseDriftMetric
     from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
@@ -29,7 +31,6 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_swap.db") -> None:
     from spaniq.monitor.collectors.file import FileCollector
     from spaniq.monitor.monitor import Monitor
     from spaniq.monitor.visualize import export_timeline_png
-    from rich.console import Console
 
     console = Console()
     OUTPUT_DIR.mkdir(exist_ok=True)
@@ -101,11 +102,12 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_swap.db") -> None:
     export_timeline_png(monitor.timeline_store, "ResponseDriftMetric",
                         output_path=str(OUTPUT_DIR / "model_swap_drift.png"), last_n=40)
 
-    console.print(f"\n[bold]results:[/bold]")
+    console.print("\n[bold]results:[/bold]")
     console.print(f"  total traces: {report.total_traces}")
     console.print(f"  alerts fired: {report.alerts_fired}")
     (OUTPUT_DIR / "model_swap_report.txt").write_text(
-        f"model swap demo\ntraces: {report.total_traces}\nalerts: {report.alerts_fired}\npass rates: {report.pass_rates}\n"
+        f"model swap demo\ntraces: {report.total_traces}\n"
+        f"alerts: {report.alerts_fired}\npass rates: {report.pass_rates}\n"
     )
 
 

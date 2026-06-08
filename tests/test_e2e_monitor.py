@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import json
 
+from spaniq.metrics.response_drift import ResponseDriftMetric
 from spaniq.monitor.baseline_store import BaselineStore
 from spaniq.monitor.collectors.file import FileCollector
 from spaniq.monitor.monitor import Monitor
 from spaniq.monitor.timeline_store import TimelineStore
-from spaniq.metrics.response_drift import ResponseDriftMetric
 
 
 def _write_jsonl(path, records: list[dict]) -> None:

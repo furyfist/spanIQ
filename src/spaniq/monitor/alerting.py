@@ -1,15 +1,17 @@
 from __future__ import annotations
 
-import json
-from dataclasses import dataclass, field
-from pathlib import Path
-
 import io
+import json
 import sys
+from dataclasses import dataclass, field
 
 from rich.console import Console
 
-_stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace") if hasattr(sys.stdout, "buffer") else sys.stdout
+_stdout = (
+    io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    if hasattr(sys.stdout, "buffer")
+    else sys.stdout
+)
 console = Console(file=_stdout, highlight=False)
 
 

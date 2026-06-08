@@ -21,12 +21,17 @@ CONTEXT = (
     "Refunds are processed within 5-7 business days to the original payment method. "
     "Items must be in original condition. Contact support@store.com to initiate."
 )
-SYSTEM_WITH_CONTEXT = f"You are a customer support agent. Use the following policy to answer:\n\n{CONTEXT}"
+SYSTEM_WITH_CONTEXT = (
+    "You are a customer support agent. "
+    f"Use the following policy to answer:\n\n{CONTEXT}"
+)
 SYSTEM_NO_CONTEXT = "You are a customer support agent. Answer the customer's question."
 MODEL = "llama-3.3-70b-versatile"
 
 
 def run(offline: bool = False, db_path: str = "spaniq_demo_rag.db") -> None:
+    from rich.console import Console
+
     from spaniq.metrics.output_stability import OutputStabilityMetric
     from spaniq.metrics.response_drift import ResponseDriftMetric
     from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
@@ -34,7 +39,6 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_rag.db") -> None:
     from spaniq.monitor.collectors.file import FileCollector
     from spaniq.monitor.monitor import Monitor
     from spaniq.monitor.visualize import export_timeline_png
-    from rich.console import Console
 
     console = Console()
     OUTPUT_DIR.mkdir(exist_ok=True)
@@ -48,15 +52,21 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_rag.db") -> None:
             return
         with open(baselines_file) as f:
             baseline_outputs = json.load(f)
+        fixture_paths = [
+            FIXTURES_DIR / "traces_with_context.jsonl",
+            FIXTURES_DIR / "traces_no_context.jsonl",
+        ]
         with open(traces_path, "w") as out:
-            for path in [FIXTURES_DIR / "traces_with_context.jsonl", FIXTURES_DIR / "traces_no_context.jsonl"]:
+            for path in fixture_paths:
                 with open(path) as f:
                     out.write(f.read())
     else:
         from spaniq.demos.generate_outputs import generate_outputs
 
         console.print("[bold]collecting 20 baseline outputs (with context)…[/bold]")
-        baseline_outputs = generate_outputs(PROMPT, n=20, model=MODEL, system_prompt=SYSTEM_WITH_CONTEXT)
+        baseline_outputs = generate_outputs(
+            PROMPT, n=20, model=MODEL, system_prompt=SYSTEM_WITH_CONTEXT
+        )
         FIXTURES_DIR.mkdir(parents=True, exist_ok=True)
         (FIXTURES_DIR / "baselines.json").write_text(json.dumps(baseline_outputs, indent=2))
 
@@ -106,11 +116,12 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_rag.db") -> None:
     export_timeline_png(monitor.timeline_store, "ResponseDriftMetric",
                         output_path=str(OUTPUT_DIR / "rag_breakage_drift.png"), last_n=40)
 
-    console.print(f"\n[bold]results:[/bold]")
+    console.print("\n[bold]results:[/bold]")
     console.print(f"  total traces: {report.total_traces}")
     console.print(f"  alerts fired: {report.alerts_fired}")
     (OUTPUT_DIR / "rag_breakage_report.txt").write_text(
-        f"rag breakage demo\ntraces: {report.total_traces}\nalerts: {report.alerts_fired}\npass rates: {report.pass_rates}\n"
+        f"rag breakage demo\ntraces: {report.total_traces}\n"
+        f"alerts: {report.alerts_fired}\npass rates: {report.pass_rates}\n"
     )
 
 

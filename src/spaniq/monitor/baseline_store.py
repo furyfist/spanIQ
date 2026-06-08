@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import uuid4
 
-
 _CREATE_BASELINES = """
 CREATE TABLE IF NOT EXISTS baselines (
     id          TEXT PRIMARY KEY,

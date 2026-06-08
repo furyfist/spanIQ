@@ -7,7 +7,6 @@ import subprocess
 import sys
 import time
 
-
 # ── helpers ───────────────────────────────────────────────────────────────────
 
 
@@ -79,9 +78,10 @@ def _baseline_collect(args: argparse.Namespace) -> None:
 
 
 def _baseline_list(args: argparse.Namespace) -> None:
-    from spaniq.monitor.baseline_store import BaselineStore
-    from rich.table import Table
     from rich.console import Console
+    from rich.table import Table
+
+    from spaniq.monitor.baseline_store import BaselineStore
 
     store = BaselineStore(args.db)
     summaries = store.list_all()
@@ -111,9 +111,11 @@ def _baseline_list(args: argparse.Namespace) -> None:
 
 
 def _baseline_show(args: argparse.Namespace) -> None:
-    from spaniq.monitor.baseline_store import BaselineStore
-    from rich.console import Console
     import json
+
+    from rich.console import Console
+
+    from spaniq.monitor.baseline_store import BaselineStore
 
     store = BaselineStore(args.db)
     try:
@@ -144,7 +146,10 @@ def _monitor_run(args: argparse.Namespace) -> None:
         try:
             from spaniq.monitor.collectors.langfuse import LangfuseCollector
         except ImportError:
-            print("error: langfuse SDK not installed — run: pip install spaniq[langfuse]", file=sys.stderr)
+            print(
+                "error: langfuse SDK not installed — run: pip install spaniq[langfuse]",
+                file=sys.stderr,
+            )
             sys.exit(1)
         collector = LangfuseCollector(poll_interval=args.poll_interval)
     elif args.source == "file":
@@ -158,10 +163,10 @@ def _monitor_run(args: argparse.Namespace) -> None:
 
     metrics = None
     if args.metrics:
+        from spaniq.metrics.consistency import ConsistencyMetric
+        from spaniq.metrics.output_stability import OutputStabilityMetric
         from spaniq.metrics.response_drift import ResponseDriftMetric
         from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
-        from spaniq.metrics.output_stability import OutputStabilityMetric
-        from spaniq.metrics.consistency import ConsistencyMetric
 
         metric_map = {
             "ResponseDrift": ResponseDriftMetric(),
@@ -192,9 +197,10 @@ def _timeline_show(args: argparse.Namespace) -> None:
 
 
 def _timeline_export(args: argparse.Namespace) -> None:
+    from rich.console import Console
+
     from spaniq.monitor.timeline_store import TimelineStore
     from spaniq.monitor.visualize import export_timeline_png
-    from rich.console import Console
 
     store = TimelineStore(args.db)
     out = export_timeline_png(store, args.metric, output_path=args.output, last_n=args.last)
@@ -202,13 +208,19 @@ def _timeline_export(args: argparse.Namespace) -> None:
 
 
 def _timeline_summary(args: argparse.Namespace) -> None:
-    from spaniq.monitor.timeline_store import TimelineStore
     from rich.console import Console
+
+    from spaniq.monitor.timeline_store import TimelineStore
 
     store = TimelineStore(args.db)
     s = store.summary(args.metric, last_n=args.last)
     console = Console()
-    trend_label = "stable" if abs(s.trend) < 0.001 else ("worsening ↑" if s.trend > 0 else "improving ↓")
+    if abs(s.trend) < 0.001:
+        trend_label = "stable"
+    elif s.trend > 0:
+        trend_label = "worsening ↑"
+    else:
+        trend_label = "improving ↓"
     console.print(f"\n[bold]{s.metric_name}[/bold] (last {s.n} traces)")
     console.print(f"  mean:      {s.mean_score:.4f}")
     console.print(f"  std:       {s.std_score:.4f}")
@@ -349,8 +361,8 @@ def main() -> None:
             from spaniq.demos.rag_breakage import run
             run(offline=offline)
         elif args.demo_command == "run-all":
-            from spaniq.demos.prompt_injection import run as run_pi
             from spaniq.demos.model_swap import run as run_ms
+            from spaniq.demos.prompt_injection import run as run_pi
             from spaniq.demos.rag_breakage import run as run_rag
             run_pi(offline=offline)
             run_ms(offline=offline)

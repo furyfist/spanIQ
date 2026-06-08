@@ -1,15 +1,12 @@
 from __future__ import annotations
 
 import json
-import threading
-import time
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from spaniq.monitor.collectors.file import FileCollector
 from spaniq.monitor.collectors.sdk import SDKCollector
-
 
 # ── FileCollector ──────────────────────────────────────────────────────────────
 
@@ -34,7 +31,9 @@ def test_file_collector_batch(tmp_path):
 
 def test_file_collector_parses_fields(tmp_path):
     p = tmp_path / "t.jsonl"
-    _write_jsonl(p, [{"input": "hi", "output": "hello", "trace_id": "abc123", "metadata": {"k": "v"}}])
+    _write_jsonl(p, [
+        {"input": "hi", "output": "hello", "trace_id": "abc123", "metadata": {"k": "v"}},
+    ])
     collector = FileCollector(str(p))
     traces = list(collector.collect())
     t = traces[0]

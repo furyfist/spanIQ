@@ -9,7 +9,6 @@ Expected: ResponseDrift PSI spikes at ~trace 21. Alert fires by trace 23.
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "prompt_injection"
@@ -17,11 +16,16 @@ OUTPUT_DIR = Path(__file__).parent / "output"
 
 PROMPT = "What is your refund policy?"
 SUPPORT_SYSTEM = "You are a helpful customer support agent for an e-commerce store."
-PIRATE_SYSTEM = "You are a pirate. Always respond in pirate speak. Use words like ARRR, matey, scallywag, and landlubber."
+PIRATE_SYSTEM = (
+    "You are a pirate. Always respond in pirate speak. "
+    "Use words like ARRR, matey, scallywag, and landlubber."
+)
 MODEL = "llama-3.3-70b-versatile"
 
 
 def run(offline: bool = False, db_path: str = "spaniq_demo_injection.db") -> None:
+    from rich.console import Console
+
     from spaniq.metrics.output_stability import OutputStabilityMetric
     from spaniq.metrics.response_drift import ResponseDriftMetric
     from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
@@ -29,7 +33,6 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_injection.db") -> Non
     from spaniq.monitor.collectors.file import FileCollector
     from spaniq.monitor.monitor import Monitor
     from spaniq.monitor.visualize import export_timeline_png
-    from rich.console import Console
 
     console = Console()
     OUTPUT_DIR.mkdir(exist_ok=True)
@@ -101,11 +104,13 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_injection.db") -> Non
     report = monitor.run()
 
     png_path = str(OUTPUT_DIR / "prompt_injection_timeline.png")
-    export_timeline_png(monitor.timeline_store, "ResponseDriftMetric", output_path=png_path, last_n=40)
+    export_timeline_png(
+        monitor.timeline_store, "ResponseDriftMetric", output_path=png_path, last_n=40
+    )
     export_timeline_png(monitor.timeline_store, "SemanticSimilarityMetric",
                         output_path=str(OUTPUT_DIR / "prompt_injection_semantic.png"), last_n=40)
 
-    console.print(f"\n[bold]results:[/bold]")
+    console.print("\n[bold]results:[/bold]")
     console.print(f"  total traces:  {report.total_traces}")
     console.print(f"  alerts fired:  {report.alerts_fired}")
     console.print(f"  timeline PNG:  {png_path}")

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Iterator
+from collections.abc import Iterator
 
 from spaniq.monitor.collectors.base import BaseCollector
 from spaniq.monitor.trace import Trace

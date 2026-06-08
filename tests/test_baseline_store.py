@@ -1,5 +1,7 @@
 import json
+
 import pytest
+
 from spaniq.monitor.baseline_store import BaselineStore, _prompt_hash
 
 

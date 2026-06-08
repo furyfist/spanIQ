@@ -30,7 +30,10 @@ def export_timeline_png(
     x = list(range(len(scores)))
 
     ax.plot(x, scores, color="#2563eb", linewidth=1.5, zorder=3)
-    ax.axhline(y=threshold, color="#dc2626", linestyle="--", linewidth=1, label=f"threshold ({threshold})")
+    ax.axhline(
+        y=threshold, color="#dc2626", linestyle="--", linewidth=1,
+        label=f"threshold ({threshold})",
+    )
 
     for i, p in enumerate(passed):
         if not p:

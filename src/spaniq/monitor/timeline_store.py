@@ -80,7 +80,8 @@ class TimelineStore:
             conn.execute(
                 """
                 INSERT INTO timeline
-                  (trace_id, baseline_id, metric_name, score, threshold, passed, timestamp, metadata)
+                  (trace_id, baseline_id, metric_name, score,
+                   threshold, passed, timestamp, metadata)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
