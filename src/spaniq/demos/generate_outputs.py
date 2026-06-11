@@ -26,7 +26,7 @@ def generate_outputs(
 
     key = api_key or os.environ.get("GROQ_API_KEY")
     if not key:
-        raise EnvironmentError("GROQ_API_KEY not set in environment")
+        raise OSError("GROQ_API_KEY not set in environment")
 
     client = Groq(api_key=key)
     outputs: list[str] = []
