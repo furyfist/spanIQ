@@ -167,6 +167,111 @@ With `GROQ_API_KEY` set, omit `--offline` to generate fresh outputs from the Gro
 
 ---
 
+## V3 — Component-Level Failure Attribution
+
+V3 answers the question V2 couldn't: in a multi-component LLM pipeline, **which component broke first, when exactly, and which downstream failures are cascade?**
+
+Cost of a diagnosis: **$0.00**. Deterministic. No LLM involved.
+
+```
+V1 answers: "is this output good?"
+V2 answers: "is my LLM still good?"
+V3 answers: "WHAT broke, WHEN, and what's cascade vs root cause?"
+```
+
+### How it works
+
+V2 already writes per-component metric scores to `TimelineStore`. V3 runs changepoint detection on those score series:
+
+- **CUSUM** (online, hand-implemented) — fires a fast alarm as traces stream in
+- **PELT** (offline, via `ruptures`) — gives precise break localization on the stored timeline
+
+The earliest component to break is the root-cause candidate. Later breakers are cascade.
+
+### 10-line example
+
+```python
+from spaniq.attribution.pipeline_monitor import PipelineMonitor
+from spaniq.attribution.attributor import attribute
+from spaniq.monitor.collectors.file import FileCollector
+from spaniq.monitor.timeline_store import TimelineStore
+
+pm = PipelineMonitor("rag-prod", FileCollector("traces.jsonl"))
+report = pm.run()
+
+store = TimelineStore()
+result = attribute(store, components=store.components(),
+                   metrics=["ResponseDriftMetric", "SemanticSimilarityMetric"])
+print(result.verdict)
+# "retrieval broke first by 7 traces; generation drift is cascade"
+```
+
+JSONL traces now support an optional `components` array. Backward compatible — traces without components behave exactly as V2.
+
+```json
+{
+  "input": "What is the capital of France?",
+  "output": "Paris",
+  "components": [
+    {"name": "retrieval", "kind": "retrieval", "output": "Paris is the capital...", "latency_ms": 120},
+    {"name": "generation", "kind": "chat",      "output": "Paris",                  "latency_ms": 900}
+  ]
+}
+```
+
+### Attribution CLI
+
+```bash
+# run per-component monitoring
+spaniq pipeline run --name rag-prod --path traces.jsonl
+
+# run failure attribution
+spaniq attribute --pipeline rag-prod --last 500
+
+# machine-readable output
+spaniq attribute --pipeline rag-prod --json
+
+# save chart PNG
+spaniq attribute --pipeline rag-prod --export attribution.png
+```
+
+### Cascade demo
+
+```bash
+python -m spaniq.demos.cascade_pipeline
+```
+
+Three-component RAG pipeline. Retrieval breaks at trace 101, generation degrades at trace 108 (cascade). `search_tool` stays healthy throughout. Runs fully offline — no API key needed.
+
+```
+  retrieval    break at trace ~103  [PSI, cosine]   <- ROOT CAUSE
+  generation   break at trace ~110  [cosine, JS]      (cascade, +7)
+  search_tool  no break                               (healthy)
+verdict: retrieval broke first by 7 traces. generation drift is cascade.
+diagnosis cost: $0.00
+```
+
+### Validation
+
+Measured on 200 synthetic cascade scenarios with known ground-truth break points:
+
+| shift magnitude | detection delay | localization error | false alarms /1k |
+|---|---|---|---|
+| 0.5 sigma | 79 traces | ±20 | 0.06 |
+| 1 sigma | 45 traces | ±5 | 0.06 |
+| 2 sigma | 17 traces | ±0 | 0.06 |
+| 4 sigma | 9 traces | ±0 | 0.06 |
+
+Attribution accuracy: **95%** at lead gap >= 5 traces, **86%** at lead gap < 5 (documented limitation).
+
+Full results in `validation/results/summary.md`.
+
+### Scope distinction
+
+V3 solves **population-level attribution** — systemic degradation across many traces where one component's score distribution shifts. It does **not** solve single-trace attribution ("this one run failed, which step caused it?"). That problem requires an LLM or human. See `docs/ATTRIBUTION.md` for the full argument.
+
+---
+
 ## What the demos actually show
 
 This section walks through what spanIQ caught in each demo — no LLM involved, just math on top of your traces.
@@ -282,11 +387,20 @@ V1 (eval):
   LLMTestCase → metrics → evaluate() → EvalResult
 
 V2 (monitoring, built on V1):
-  Trace Source → Collector → LLMTestCase → Monitor → metrics → TimelineStore → AlertEngine
-       ↑                          ↑
-  langfuse API              BaselineStore
-  JSONL file                (baseline_outputs)
+  Trace Source → Collector → Monitor → metrics → TimelineStore → AlertEngine
+       ↑                                               ↑
+  langfuse API                                   BaselineStore
+  JSONL file
   direct SDK
+
+V3 (attribution, built on V2's TimelineStore):
+  Trace (with components) → PipelineMonitor → per-component TimelineStore
+                                 ↓
+                          CUSUM (online alarm)
+                                 ↓
+                          PELT (offline localization)
+                                 ↓
+                          Attributor → root cause + cascade + verdict
 ```
 
 ## When spanIQ Is Not the Right Tool
