@@ -188,6 +188,102 @@ def _monitor_run(args: argparse.Namespace) -> None:
     monitor.run(max_traces=args.max_traces)
 
 
+def _pipeline_run(args: argparse.Namespace) -> None:
+    from spaniq.attribution.pipeline_monitor import PipelineMonitor
+    from spaniq.monitor.collectors.file import FileCollector
+
+    collector = FileCollector(args.path)
+    pm = PipelineMonitor(
+        pipeline_name=args.name,
+        collector=collector,
+        db_path=args.db,
+        window_size=args.window,
+        warmup=args.warmup,
+    )
+    report = pm.run(max_traces=args.max_traces)
+    if report.online_alarms:
+        from rich.console import Console
+        Console().print(f"[yellow]online alarms:[/yellow] {report.online_alarms}")
+
+
+def _pipeline_status(args: argparse.Namespace) -> None:
+    from rich.console import Console
+    from rich.table import Table
+
+    from spaniq.monitor.timeline_store import TimelineStore
+
+    store = TimelineStore(args.db)
+    comps = store.components()
+    console = Console()
+    table = Table(title=f"Pipeline components — last {args.last} traces")
+    table.add_column("component")
+    table.add_column("metric")
+    table.add_column("mean", justify="right")
+    table.add_column("trend", justify="right")
+    table.add_column("pass_rate", justify="right")
+    for comp in comps:
+        for metric in ["ResponseDriftMetric", "SemanticSimilarityMetric", "OutputStabilityMetric"]:
+            rows = store.query(metric, last_n=args.last, component=comp)
+            if not rows:
+                continue
+            import numpy as np
+            scores = [r.score for r in rows]
+            mean = float(np.mean(scores))
+            trend = float(np.polyfit(range(len(scores)), scores, 1)[0]) if len(scores) >= 2 else 0.0
+            pass_rate = sum(1 for r in rows if r.passed) / len(rows)
+            table.add_row(comp, metric[:20], f"{mean:.4f}", f"{trend:+.6f}", f"{pass_rate*100:.1f}%")
+    console.print(table)
+
+
+def _attribute(args: argparse.Namespace) -> None:
+    from spaniq.attribution.attributor import attribute
+    from spaniq.attribution.report import (
+        attribution_to_dict,
+        print_attribution,
+        save_attribution_json,
+        save_attribution_png,
+    )
+    from spaniq.monitor.timeline_store import TimelineStore
+
+    store = TimelineStore(args.db)
+    components = store.components()
+    if not components:
+        print("no component data found in timeline — run 'spaniq pipeline run' first")
+        return
+
+    metrics = (
+        [m.strip() for m in args.metrics.split(",")]
+        if args.metrics
+        else ["ResponseDriftMetric", "SemanticSimilarityMetric", "OutputStabilityMetric"]
+    )
+
+    result = attribute(
+        timeline=store,
+        components=components,
+        metrics=metrics,
+        last_n=args.last,
+        pelt_penalty=args.penalty,
+    )
+
+    if args.as_json:
+        import json as _json
+        print(_json.dumps(attribution_to_dict(result), indent=2))
+    else:
+        print_attribution(result)
+
+    if args.export:
+        save_attribution_png(
+            result=result,
+            timeline=store,
+            components=components,
+            primary_metric=metrics[0],
+            path=args.export,
+            last_n=args.last,
+        )
+        from rich.console import Console
+        Console().print(f"[green]saved:[/green] {args.export}")
+
+
 def _timeline_show(args: argparse.Namespace) -> None:
     from spaniq.monitor.timeline_store import TimelineStore
     from spaniq.monitor.visualize import print_sparkline
@@ -293,6 +389,32 @@ def _build_parser() -> argparse.ArgumentParser:
     summary_tl.add_argument("--metric", required=True)
     summary_tl.add_argument("--last", type=int, default=200)
 
+    # ── pipeline ──────────────────────────────────────────────────────────────
+    pip_p = sub.add_parser("pipeline", help="run per-component pipeline monitoring (V3)")
+    pip_p.add_argument("--db", default="spaniq.db")
+    pip_sub = pip_p.add_subparsers(dest="pipeline_command")
+
+    pip_run = pip_sub.add_parser("run", help="run PipelineMonitor on a JSONL trace file")
+    pip_run.add_argument("--name", required=True, help="pipeline name")
+    pip_run.add_argument("--path", required=True, help="JSONL trace file with components")
+    pip_run.add_argument("--max-traces", type=int, default=None, dest="max_traces")
+    pip_run.add_argument("--window", type=int, default=20)
+    pip_run.add_argument("--warmup", type=int, default=20)
+
+    pip_status = pip_sub.add_parser("status", help="show live CUSUM statistics per component")
+    pip_status.add_argument("--name", required=True, help="pipeline name")
+    pip_status.add_argument("--last", type=int, default=200)
+
+    # ── attribute ─────────────────────────────────────────────────────────────
+    attr_p = sub.add_parser("attribute", help="run failure attribution on stored timeline (V3)")
+    attr_p.add_argument("--db", default="spaniq.db")
+    attr_p.add_argument("--pipeline", required=True, help="pipeline name")
+    attr_p.add_argument("--last", type=int, default=500)
+    attr_p.add_argument("--metrics", default=None, help="comma-separated metric names")
+    attr_p.add_argument("--json", action="store_true", dest="as_json", help="output JSON")
+    attr_p.add_argument("--export", default=None, help="save PNG chart to this path")
+    attr_p.add_argument("--penalty", type=float, default=3.0, help="PELT penalty")
+
     # ── demo ──────────────────────────────────────────────────────────────────
     demo_p = sub.add_parser("demo", help="run reproducible replay demos")
     demo_sub = demo_p.add_subparsers(dest="demo_command")
@@ -336,6 +458,21 @@ def main() -> None:
             _monitor_run(args)
         else:
             parser.parse_args(["monitor", "--help"])
+
+    elif args.command == "pipeline":
+        if not hasattr(args, "db"):
+            args.db = "spaniq.db"
+        if args.pipeline_command == "run":
+            _pipeline_run(args)
+        elif args.pipeline_command == "status":
+            _pipeline_status(args)
+        else:
+            parser.parse_args(["pipeline", "--help"])
+
+    elif args.command == "attribute":
+        if not hasattr(args, "db"):
+            args.db = "spaniq.db"
+        _attribute(args)
 
     elif args.command == "timeline":
         if not hasattr(args, "db"):
