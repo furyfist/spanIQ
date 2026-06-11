@@ -117,6 +117,10 @@ class PipelineMonitor:
                 state.baseline_outputs = list(state.warmup_outputs)
             return
 
+        if not span.output or not span.output.strip():
+            self._record_side_series(trace, span, state)
+            return
+
         state.window.append(span.output)
         if len(state.window) < 2:
             return

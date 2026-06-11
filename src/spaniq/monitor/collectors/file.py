@@ -62,10 +62,33 @@ class FileCollector(BaseCollector):
         if "input" not in obj or "output" not in obj:
             logger.warning("FileCollector: skipping line missing input/output: %r", line[:80])
             return None
+        components = None
+        if "components" in obj and isinstance(obj["components"], list):
+            from spaniq.attribution.component import ComponentKind, ComponentSpan
+            spans = []
+            for c in obj["components"]:
+                if not isinstance(c, dict) or "name" not in c or "output" not in c:
+                    continue
+                kind_str = c.get("kind", "default")
+                try:
+                    kind = ComponentKind(kind_str)
+                except ValueError:
+                    kind = ComponentKind.DEFAULT
+                spans.append(ComponentSpan(
+                    name=c["name"],
+                    kind=kind,
+                    output=c["output"],
+                    latency_ms=c.get("latency_ms"),
+                    error=bool(c.get("error", False)),
+                    metadata=c.get("metadata"),
+                ))
+            if spans:
+                components = spans
         return Trace(
             input=obj["input"],
             output=obj["output"],
             trace_id=obj.get("trace_id") or str(uuid4()),
             timestamp=obj.get("timestamp") or datetime.now(timezone.utc).isoformat(),
             metadata=obj.get("metadata"),
+            components=components,
         )
