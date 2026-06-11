@@ -114,14 +114,15 @@ class BaselineStore:
             raise KeyError(f"Baseline not found: {baseline_id}")
         return Baseline(**dict(row))
 
-    def get_by_name(self, name: str) -> Baseline:
+    def get_by_name(self, name: str, component: str = "default") -> Baseline:
+        lookup = f"{name}/{component}" if component != "default" else name
         with self._conn() as conn:
             row = conn.execute(
                 "SELECT * FROM baselines WHERE name = ? ORDER BY version DESC LIMIT 1",
-                (name,),
+                (lookup,),
             ).fetchone()
         if row is None:
-            raise KeyError(f"Baseline not found: {name}")
+            raise KeyError(f"Baseline not found: {lookup}")
         return Baseline(**dict(row))
 
     def get_by_prompt(self, prompt: str) -> Baseline | None:

@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from spaniq.attribution.component import ComponentSpan
+
 
 @dataclass
 class Trace:
@@ -16,3 +18,4 @@ class Trace:
         default_factory=lambda: datetime.now(timezone.utc).isoformat()
     )
     metadata: dict | None = None
+    components: list[ComponentSpan] | None = None

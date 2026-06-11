@@ -23,6 +23,12 @@ CREATE INDEX IF NOT EXISTS idx_timeline_metric ON timeline(metric_name, timestam
 CREATE INDEX IF NOT EXISTS idx_timeline_baseline ON timeline(baseline_id, timestamp);
 """
 
+_ADD_COMPONENT_COLUMN = "ALTER TABLE timeline ADD COLUMN component TEXT NOT NULL DEFAULT 'default'"
+_CREATE_COMPONENT_INDEX = (
+    "CREATE INDEX IF NOT EXISTS idx_timeline_component "
+    "ON timeline(component, metric_name, timestamp)"
+)
+
 
 @dataclass
 class TimelineRow:
@@ -35,6 +41,7 @@ class TimelineRow:
     passed: bool
     timestamp: str
     metadata: dict | None
+    component: str = "default"
 
 
 @dataclass
@@ -46,7 +53,7 @@ class TimelineSummary:
     min_score: float
     max_score: float
     pass_rate: float
-    trend: float  # linear regression slope — positive = worsening for drift metrics
+    trend: float
 
 
 class TimelineStore:
@@ -64,6 +71,10 @@ class TimelineStore:
     def _init_db(self) -> None:
         with self._conn() as conn:
             conn.executescript(_CREATE_TIMELINE)
+            cols = {row[1] for row in conn.execute("PRAGMA table_info(timeline)")}
+            if "component" not in cols:
+                conn.execute(_ADD_COMPONENT_COLUMN)
+            conn.execute(_CREATE_COMPONENT_INDEX)
 
     def record(
         self,
@@ -75,14 +86,15 @@ class TimelineStore:
         passed: bool,
         timestamp: str,
         metadata: dict | None = None,
+        component: str = "default",
     ) -> None:
         with self._conn() as conn:
             conn.execute(
                 """
                 INSERT INTO timeline
                   (trace_id, baseline_id, metric_name, score,
-                   threshold, passed, timestamp, metadata)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                   threshold, passed, timestamp, metadata, component)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     trace_id,
@@ -93,6 +105,7 @@ class TimelineStore:
                     int(passed),
                     timestamp,
                     json.dumps(metadata) if metadata else None,
+                    component,
                 ),
             )
 
@@ -101,12 +114,16 @@ class TimelineStore:
         metric_name: str,
         last_n: int = 200,
         since: str | None = None,
+        component: str | None = None,
     ) -> list[TimelineRow]:
         sql = "SELECT * FROM timeline WHERE metric_name = ?"
         params: list = [metric_name]
         if since:
             sql += " AND timestamp >= ?"
             params.append(since)
+        if component is not None:
+            sql += " AND component = ?"
+            params.append(component)
         sql += " ORDER BY timestamp DESC LIMIT ?"
         params.append(last_n)
 
@@ -124,9 +141,26 @@ class TimelineStore:
                 passed=bool(r["passed"]),
                 timestamp=r["timestamp"],
                 metadata=json.loads(r["metadata"]) if r["metadata"] else None,
+                component=r["component"],
             )
             for r in rows
         ]))
+
+    def query_series(
+        self,
+        component: str,
+        metric_name: str,
+        last_n: int = 500,
+    ) -> list[float]:
+        rows = self.query(metric_name=metric_name, last_n=last_n, component=component)
+        return [r.score for r in rows]
+
+    def components(self) -> list[str]:
+        with self._conn() as conn:
+            rows = conn.execute(
+                "SELECT DISTINCT component FROM timeline ORDER BY component"
+            ).fetchall()
+        return [r[0] for r in rows]
 
     def summary(self, metric_name: str, last_n: int = 200) -> TimelineSummary:
         rows = self.query(metric_name, last_n=last_n)
