@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -38,17 +38,6 @@ def attribute(
 ) -> AttributionResult:
     """Run PELT on each (component, metric) series, cluster changepoints,
     rank by earliest break. cusum_alarms is optional metadata from online detection."""
-
-    all_breaks: dict[str, list[int]] = {c: [] for c in components}
-
-    for component in components:
-        for metric in metrics:
-            series = timeline.query_series(component=component, metric_name=metric, last_n=last_n)
-            if len(series) < 20:
-                continue
-            arr = np.array(series, dtype=float)
-            cps = detect_changepoints(arr, penalty=pelt_penalty)
-            all_breaks[component].extend(cps)
 
     breaks_with_metrics: dict[str, dict[int, list[str]]] = {c: {} for c in components}
     for component in components:
@@ -93,35 +82,56 @@ def attribute(
         )
 
     component_breaks.sort(key=lambda b: b.break_trace_index)
-    n_metrics = len(metrics)
 
-    for i, cb in enumerate(component_breaks):
+    # chain-cluster: group breaks where each is within cluster_window of the previous
+    clusters: list[list[ComponentBreak]] = []
+    current_cluster: list[ComponentBreak] = [component_breaks[0]]
+    for cb in component_breaks[1:]:
+        if cb.break_trace_index - current_cluster[-1].break_trace_index <= cluster_window:
+            current_cluster.append(cb)
+        else:
+            clusters.append(current_cluster)
+            current_cluster = [cb]
+    clusters.append(current_cluster)
+
+    # pick the largest cluster as the main event; ties go to the latest cluster
+    event_cluster = max(clusters, key=lambda c: (len(c), c[0].break_trace_index))
+    # tie-break: earlier PELT index first; on tie prefer more broken metrics (wider impact = cause);
+    # final tie-break: earlier CUSUM alarm
+    event_cluster.sort(key=lambda b: (
+        b.break_trace_index,
+        -len(b.broken_metrics),
+        b.cusum_alarm_index if b.cusum_alarm_index is not None else 99999,
+    ))
+
+    n_metrics = len(metrics)
+    for i, cb in enumerate(event_cluster):
         metric_score = len(cb.broken_metrics) / max(n_metrics, 1)
         if i == 0:
             lead_gap = (
-                component_breaks[1].break_trace_index - cb.break_trace_index
-                if len(component_breaks) > 1
+                event_cluster[1].break_trace_index - cb.break_trace_index
+                if len(event_cluster) > 1
                 else cluster_window
             )
         else:
-            lead_gap = 0
+            lead_gap = cb.break_trace_index - event_cluster[i - 1].break_trace_index
         gap_score = min(1.0, lead_gap / max(cluster_window, 1))
         cb.confidence = 0.6 * metric_score + 0.4 * gap_score
 
-    root_cause = component_breaks[0]
-    cascade = component_breaks[1:]
-    healthy = [c for c in components if c not in {b.component for b in component_breaks}]
+    root_cause = event_cluster[0]
+    cascade = event_cluster[1:]
+    healthy = [c for c in components if c not in {b.component for b in event_cluster}]
 
-    all_indices = [b.break_trace_index for b in component_breaks]
+    all_indices = [b.break_trace_index for b in event_cluster]
     event_window = (min(all_indices), last_n)
 
-    if len(component_breaks) > 1:
-        lead = component_breaks[1].break_trace_index - root_cause.break_trace_index
+    if len(event_cluster) > 1:
+        lead = event_cluster[1].break_trace_index - root_cause.break_trace_index
         verdict = (
             f"{root_cause.component} broke first by {lead} trace(s); "
             f"{', '.join(b.component for b in cascade)} drift is cascade"
         )
-    elif len(component_breaks) == 1:
+    elif len(event_cluster) == 1:
         verdict = f"{root_cause.component} broke; no cascade detected"
     else:
         verdict = "no degradation detected"
