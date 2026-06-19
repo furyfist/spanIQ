@@ -413,7 +413,7 @@ def _build_parser() -> argparse.ArgumentParser:
     attr_p.add_argument("--metrics", default=None, help="comma-separated metric names")
     attr_p.add_argument("--json", action="store_true", dest="as_json", help="output JSON")
     attr_p.add_argument("--export", default=None, help="save PNG chart to this path")
-    attr_p.add_argument("--penalty", type=float, default=3.0, help="PELT penalty")
+    attr_p.add_argument("--penalty", type=float, default=None, help="PELT penalty (default: BIC = 3*log(n))")
 
     # ── demo ──────────────────────────────────────────────────────────────────
     demo_p = sub.add_parser("demo", help="run reproducible replay demos")

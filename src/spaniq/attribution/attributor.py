@@ -32,7 +32,7 @@ def attribute(
     metrics: list[str],
     last_n: int = 500,
     cluster_window: int = 10,
-    pelt_penalty: float = 3.0,
+    pelt_penalty: float | None = None,
     cusum_alarms: dict[str, dict[str, int]] | None = None,
 ) -> AttributionResult:
     """Run PELT on each (component, metric) series, cluster changepoints,
