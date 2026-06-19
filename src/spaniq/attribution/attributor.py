@@ -34,6 +34,7 @@ def attribute(
     cluster_window: int = 10,
     pelt_penalty: float | None = None,
     cusum_alarms: dict[str, dict[str, int]] | None = None,
+    warmup: int = 0,
 ) -> AttributionResult:
     """Run PELT on each (component, metric) series, cluster changepoints,
     rank by earliest break. cusum_alarms is optional metadata from online detection."""
@@ -74,7 +75,7 @@ def attribute(
                 cusum_alarm = min(comp_alarms.values())
         cb = ComponentBreak(
             component=component,
-            break_trace_index=earliest,
+            break_trace_index=earliest + warmup,
             cusum_alarm_index=cusum_alarm,
             broken_metrics=broken_metrics,
             confidence=0.0,

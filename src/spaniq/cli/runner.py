@@ -263,6 +263,7 @@ def _attribute(args: argparse.Namespace) -> None:
         metrics=metrics,
         last_n=args.last,
         pelt_penalty=args.penalty,
+        warmup=args.warmup,
     )
 
     if args.as_json:
@@ -414,6 +415,7 @@ def _build_parser() -> argparse.ArgumentParser:
     attr_p.add_argument("--json", action="store_true", dest="as_json", help="output JSON")
     attr_p.add_argument("--export", default=None, help="save PNG chart to this path")
     attr_p.add_argument("--penalty", type=float, default=None, help="PELT penalty (default: BIC = 3*log(n))")
+    attr_p.add_argument("--warmup", type=int, default=20, help="warmup traces to add back to PELT indices")
 
     # ── demo ──────────────────────────────────────────────────────────────────
     demo_p = sub.add_parser("demo", help="run reproducible replay demos")

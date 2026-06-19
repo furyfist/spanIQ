@@ -74,6 +74,7 @@ def run(offline: bool = True) -> None:
         metrics=metrics,
         last_n=200,
         cusum_alarms=report.online_alarms,
+        warmup=pm.warmup,
     )
 
     console.rule("[bold]Attribution Result[/bold]")
