@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections import deque
-
 import numpy as np
 from scipy.spatial.distance import jensenshannon
 
@@ -29,41 +27,31 @@ def _js_small_sample(baseline_col: np.ndarray, current_col: np.ndarray) -> float
 
 
 class OutputStabilityMetric(BaseMetric):
-    """Rolling-window JS divergence on structural features vs baseline corpus.
+    """JS divergence on structural features: baseline corpus vs actual_output.
 
-    Features: char count, word count, sentence count, avg word length.
-    Maintains a window of the last window_size outputs and compares the
-    aggregate feature distribution against the baseline corpus.
-    JS < threshold passes (lower = more stable).
+    Stateless — no internal window. PipelineMonitor owns the rolling window
+    and passes it as baseline_outputs. Features: char count, word count,
+    sentence count, avg word length. JS < threshold passes (lower = more stable).
     """
 
-    def __init__(self, threshold: float = 0.15, window_size: int = 20):
+    def __init__(self, threshold: float = 0.15):
         super().__init__(threshold=threshold)
-        self.window_size = window_size
-        self._window: deque[str] = deque(maxlen=window_size)
 
     def measure(self, test_case: LLMTestCase) -> float:
         if not test_case.baseline_outputs:
             raise ValueError("OutputStabilityMetric requires baseline_outputs")
 
-        self._window.append(test_case.actual_output)
-
-        if len(self._window) < 3:
-            self.score = 0.0
-            self.reason = f"warming up ({len(self._window)}/{self.window_size} traces)"
-            return self.score
-
         baseline = np.array([self._extract_features(o) for o in test_case.baseline_outputs])
-        current = np.array([self._extract_features(o) for o in self._window])
+        current = self._extract_features(test_case.actual_output).reshape(1, -1)
 
         scores = []
         for i in range(baseline.shape[1]):
             baseline_col = baseline[:, i]
-            current_col = current[:, i]
-            if baseline_col.max() == baseline_col.min() and current_col.max() == current_col.min():
-                scores.append(0.0 if baseline_col[0] == current_col[0] else 1.0)
+            current_val = current[0, i]
+            if baseline_col.max() == baseline_col.min():
+                scores.append(0.0 if baseline_col[0] == current_val else 1.0)
             else:
-                scores.append(_js_small_sample(baseline_col, current_col))
+                scores.append(_js_small_sample(baseline_col, np.array([current_val])))
 
         self.score = float(np.mean(scores))
         op = "<" if self.is_successful() else ">="

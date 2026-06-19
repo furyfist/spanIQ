@@ -101,9 +101,9 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_rag.db") -> None:
         baseline_name="rag-demo",
         collector=FileCollector(str(traces_path)),
         metrics=[
-            ResponseDriftMetric(threshold=2.0, window_size=10),
+            ResponseDriftMetric(threshold=2.0),
             SemanticSimilarityMetric(),
-            OutputStabilityMetric(threshold=0.15, window_size=10),
+            OutputStabilityMetric(threshold=0.15),
         ],
         db_path=db_path,
         alert_after=3,

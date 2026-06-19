@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from collections import deque
-
 import numpy as np
 
 from spaniq.core.test_case import LLMTestCase
@@ -29,31 +27,21 @@ def _discrete_psi(baseline_freq: dict[str, int], current_freq: dict[str, int]) -
 
 
 class ResponseDriftMetric(BaseMetric):
-    """Rolling-window PSI on word-frequency distributions vs baseline corpus.
+    """PSI on word-frequency distributions: baseline corpus vs actual_output.
 
-    Maintains a deque of the last window_size outputs and compares the
-    aggregate word-frequency distribution against the baseline corpus.
-    PSI < threshold passes (lower = less drift).
+    Stateless — no internal window. PipelineMonitor owns the rolling window
+    and passes it as baseline_outputs. PSI < threshold passes (lower = less drift).
     """
 
-    def __init__(self, threshold: float = 0.10, window_size: int = 20):
+    def __init__(self, threshold: float = 0.10):
         super().__init__(threshold=threshold)
-        self.window_size = window_size
-        self._window: deque[str] = deque(maxlen=window_size)
 
     def measure(self, test_case: LLMTestCase) -> float:
         if not test_case.baseline_outputs:
             raise ValueError("ResponseDriftMetric requires baseline_outputs")
 
-        self._window.append(test_case.actual_output)
-
-        if len(self._window) < 3:
-            self.score = 0.0
-            self.reason = f"warming up ({len(self._window)}/{self.window_size} traces)"
-            return self.score
-
         baseline_dist = self._token_frequencies(" ".join(test_case.baseline_outputs))
-        current_dist = self._token_frequencies(" ".join(self._window))
+        current_dist = self._token_frequencies(test_case.actual_output)
 
         self.score = _discrete_psi(baseline_dist, current_dist)
         op = "<" if self.is_successful() else ">="
