@@ -285,6 +285,85 @@ def _attribute(args: argparse.Namespace) -> None:
         Console().print(f"[green]saved:[/green] {args.export}")
 
 
+def _collect_otel(args: argparse.Namespace) -> None:
+    try:
+        from spaniq.monitor.collectors.otel import OTelCollector
+    except ImportError:
+        print("error: OTel deps not installed — run: pip install spaniq[otel]", file=sys.stderr)
+        sys.exit(1)
+
+    collector = OTelCollector(
+        grpc_port=args.grpc_port,
+        http_port=args.http_port,
+        assembly_timeout=args.assembly_timeout,
+    )
+    collector.start()
+    print(f"OTel collector listening — gRPC :{args.grpc_port}  HTTP :{args.http_port}")
+    print("Point your OTel exporter to localhost:4317 (gRPC) or localhost:4318 (HTTP)")
+    print("Press Ctrl+C to stop.\n")
+
+    if args.store_only:
+        from spaniq.monitor.timeline_store import TimelineStore
+        store = TimelineStore(args.db)
+        try:
+            for trace in collector.collect():
+                print(f"  trace received: {trace.trace_id[:8]}…")
+        except KeyboardInterrupt:
+            collector.stop()
+            print("\nstopped.")
+        return
+
+    from spaniq.monitor.monitor import Monitor
+    monitor = Monitor(
+        baseline_name=args.baseline,
+        collector=collector,
+        db_path=args.db,
+        alert_after=args.alert_after,
+        alerts_path=args.alerts_path,
+    )
+    try:
+        monitor.run()
+    except KeyboardInterrupt:
+        collector.stop()
+        print("\nstopped.")
+
+
+def _dashboard_launch(args: argparse.Namespace) -> None:
+    try:
+        import importlib.util
+        if importlib.util.find_spec("streamlit") is None:
+            raise ImportError
+    except ImportError:
+        print("error: streamlit not installed — run: pip install spaniq[dashboard]", file=sys.stderr)
+        sys.exit(1)
+
+    import pathlib
+    app_path = pathlib.Path(__file__).parent.parent / "dashboard" / "app.py"
+    cmd = [
+        sys.executable, "-m", "streamlit", "run", str(app_path),
+        "--server.port", str(args.port),
+        "--",
+        "--db", args.db,
+    ]
+    print(f"Launching spanIQ dashboard at http://localhost:{args.port}")
+    sys.exit(subprocess.call(cmd))
+
+
+def _benchmark_run(args: argparse.Namespace) -> None:
+    try:
+        from benchmarks.run_benchmark import main as bench_main
+    except ImportError as exc:
+        print(f"error: benchmark deps not available — {exc}", file=sys.stderr)
+        sys.exit(1)
+    bench_main(
+        tools=[t.strip() for t in args.tool.split(",")],
+        datasets=[d.strip() for d in args.dataset.split(",")],
+        runs=args.runs,
+        setup_only=args.setup,
+        output_dir=args.output,
+    )
+
+
 def _timeline_show(args: argparse.Namespace) -> None:
     from spaniq.monitor.timeline_store import TimelineStore
     from spaniq.monitor.visualize import print_sparkline
@@ -417,6 +496,35 @@ def _build_parser() -> argparse.ArgumentParser:
     attr_p.add_argument("--penalty", type=float, default=None, help="PELT penalty (default: BIC = 3*log(n))")
     attr_p.add_argument("--warmup", type=int, default=20, help="warmup traces to add back to PELT indices")
 
+    # ── collect-otel ──────────────────────────────────────────────────────────
+    otel_p = sub.add_parser("collect-otel", help="receive OTel spans via OTLP and run monitoring")
+    otel_p.add_argument("--baseline", required=True, help="baseline name to monitor against")
+    otel_p.add_argument("--db", default="spaniq.db")
+    otel_p.add_argument("--grpc-port", type=int, default=4317, dest="grpc_port")
+    otel_p.add_argument("--http-port", type=int, default=4318, dest="http_port")
+    otel_p.add_argument("--store-only", action="store_true", dest="store_only",
+                        help="collect and store traces without running metric monitoring")
+    otel_p.add_argument("--assembly-timeout", type=float, default=5.0, dest="assembly_timeout")
+    otel_p.add_argument("--alert-after", type=int, default=3, dest="alert_after")
+    otel_p.add_argument("--alerts-path", default="alerts.jsonl", dest="alerts_path")
+
+    # ── dashboard ─────────────────────────────────────────────────────────────
+    dash_p = sub.add_parser("dashboard", help="launch the Streamlit local dashboard")
+    dash_p.add_argument("--db", default="spaniq.db", help="path to spaniq.db")
+    dash_p.add_argument("--port", type=int, default=8501, help="Streamlit port")
+
+    # ── benchmark ─────────────────────────────────────────────────────────────
+    bench_p = sub.add_parser("benchmark", help="run the determinism benchmark suite")
+    bench_p.add_argument("--tool", default="spaniq",
+                         help="comma-separated tools to benchmark: spaniq,deepeval,ragas,groq")
+    bench_p.add_argument("--dataset", default="all",
+                         help="dataset to use: qa_factual, summarization, rag_retrieval, all")
+    bench_p.add_argument("--runs", type=int, default=5, help="number of identical runs per tool")
+    bench_p.add_argument("--setup", action="store_true",
+                         help="download and cache benchmark datasets, then exit")
+    bench_p.add_argument("--output", default="benchmarks/results",
+                         help="directory to write results")
+
     # ── demo ──────────────────────────────────────────────────────────────────
     demo_p = sub.add_parser("demo", help="run reproducible replay demos")
     demo_sub = demo_p.add_subparsers(dest="demo_command")
@@ -487,6 +595,15 @@ def main() -> None:
             _timeline_summary(args)
         else:
             parser.parse_args(["timeline", "--help"])
+
+    elif args.command == "collect-otel":
+        _collect_otel(args)
+
+    elif args.command == "dashboard":
+        _dashboard_launch(args)
+
+    elif args.command == "benchmark":
+        _benchmark_run(args)
 
     elif args.command == "demo":
         offline = getattr(args, "offline", False)
