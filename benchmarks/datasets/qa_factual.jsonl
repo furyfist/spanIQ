@@ -1,0 +1,20 @@
+{"input": "What is the capital of France?", "reference_output": "Paris", "output": "The capital of France is Paris.", "category": "factual_qa", "source": "sample"}
+{"input": "Who wrote Romeo and Juliet?", "reference_output": "William Shakespeare", "output": "Romeo and Juliet was written by William Shakespeare.", "category": "factual_qa", "source": "sample"}
+{"input": "What is the chemical symbol for water?", "reference_output": "H2O", "output": "The chemical symbol for water is H2O.", "category": "factual_qa", "source": "sample"}
+{"input": "In what year did World War II end?", "reference_output": "1945", "output": "World War II ended in 1945.", "category": "factual_qa", "source": "sample"}
+{"input": "What planet is closest to the Sun?", "reference_output": "Mercury", "output": "Mercury is the planet closest to the Sun.", "category": "factual_qa", "source": "sample"}
+{"input": "How many sides does a hexagon have?", "reference_output": "Six", "output": "A hexagon has six sides.", "category": "factual_qa", "source": "sample"}
+{"input": "What is the speed of light in a vacuum?", "reference_output": "299,792,458 metres per second", "output": "The speed of light in a vacuum is approximately 299,792,458 metres per second.", "category": "factual_qa", "source": "sample"}
+{"input": "Who painted the Mona Lisa?", "reference_output": "Leonardo da Vinci", "output": "The Mona Lisa was painted by Leonardo da Vinci.", "category": "factual_qa", "source": "sample"}
+{"input": "What is the largest ocean on Earth?", "reference_output": "Pacific Ocean", "output": "The Pacific Ocean is the largest ocean on Earth.", "category": "factual_qa", "source": "sample"}
+{"input": "What gas do plants absorb during photosynthesis?", "reference_output": "Carbon dioxide", "output": "Plants absorb carbon dioxide during photosynthesis.", "category": "factual_qa", "source": "sample"}
+{"input": "What is the boiling point of water at sea level in Celsius?", "reference_output": "100 degrees Celsius", "output": "Water boils at 100 degrees Celsius at sea level.", "category": "factual_qa", "source": "sample"}
+{"input": "How many bones are in the adult human body?", "reference_output": "206", "output": "The adult human body has 206 bones.", "category": "factual_qa", "source": "sample"}
+{"input": "What is the longest river in the world?", "reference_output": "Nile", "output": "The Nile is the longest river in the world.", "category": "factual_qa", "source": "sample"}
+{"input": "What element has the atomic number 1?", "reference_output": "Hydrogen", "output": "Hydrogen has the atomic number 1.", "category": "factual_qa", "source": "sample"}
+{"input": "In which country is the Great Wall located?", "reference_output": "China", "output": "The Great Wall is located in China.", "category": "factual_qa", "source": "sample"}
+{"input": "What is the smallest prime number?", "reference_output": "2", "output": "The smallest prime number is 2.", "category": "factual_qa", "source": "sample"}
+{"input": "Who invented the telephone?", "reference_output": "Alexander Graham Bell", "output": "The telephone was invented by Alexander Graham Bell.", "category": "factual_qa", "source": "sample"}
+{"input": "What is the currency of Japan?", "reference_output": "Yen", "output": "The currency of Japan is the Yen.", "category": "factual_qa", "source": "sample"}
+{"input": "How many continents are there on Earth?", "reference_output": "Seven", "output": "There are seven continents on Earth.", "category": "factual_qa", "source": "sample"}
+{"input": "What is the square root of 144?", "reference_output": "12", "output": "The square root of 144 is 12.", "category": "factual_qa", "source": "sample"}
