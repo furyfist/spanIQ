@@ -29,6 +29,21 @@ _CREATE_COMPONENT_INDEX = (
     "ON timeline(component, metric_name, timestamp)"
 )
 
+_CREATE_ALERTS = """
+CREATE TABLE IF NOT EXISTS alerts (
+    id                INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp         TEXT NOT NULL,
+    metric_name       TEXT NOT NULL,
+    component         TEXT NOT NULL DEFAULT 'default',
+    score             REAL NOT NULL,
+    threshold         REAL NOT NULL,
+    severity          TEXT NOT NULL DEFAULT 'warning',
+    message           TEXT,
+    consecutive_count INTEGER DEFAULT 1
+);
+CREATE INDEX IF NOT EXISTS idx_alerts_time ON alerts(timestamp DESC);
+"""
+
 
 @dataclass
 class TimelineRow:
@@ -75,6 +90,7 @@ class TimelineStore:
             if "component" not in cols:
                 conn.execute(_ADD_COMPONENT_COLUMN)
             conn.execute(_CREATE_COMPONENT_INDEX)
+            conn.executescript(_CREATE_ALERTS)
 
     def record(
         self,
@@ -198,3 +214,57 @@ class TimelineStore:
     def count(self) -> int:
         with self._conn() as conn:
             return conn.execute("SELECT COUNT(*) FROM timeline").fetchone()[0]
+
+    def record_alert(
+        self,
+        timestamp: str,
+        metric_name: str,
+        score: float,
+        threshold: float,
+        message: str,
+        component: str = "default",
+        severity: str = "warning",
+        consecutive_count: int = 1,
+    ) -> None:
+        with self._conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO alerts
+                  (timestamp, metric_name, component, score, threshold,
+                   severity, message, consecutive_count)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (timestamp, metric_name, component, score, threshold,
+                 severity, message, consecutive_count),
+            )
+
+    def query_alerts(
+        self,
+        component: str | None = None,
+        metric_name: str | None = None,
+        since: str | None = None,
+        last_n: int = 200,
+    ) -> list[dict]:
+        sql = "SELECT * FROM alerts WHERE 1=1"
+        params: list = []
+        if component:
+            sql += " AND component = ?"
+            params.append(component)
+        if metric_name:
+            sql += " AND metric_name = ?"
+            params.append(metric_name)
+        if since:
+            sql += " AND timestamp >= ?"
+            params.append(since)
+        sql += " ORDER BY timestamp DESC LIMIT ?"
+        params.append(last_n)
+        with self._conn() as conn:
+            rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+
+    def alert_count(self) -> int:
+        try:
+            with self._conn() as conn:
+                return conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
+        except Exception:
+            return 0

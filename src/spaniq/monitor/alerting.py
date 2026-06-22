@@ -33,6 +33,7 @@ class AlertEngine:
     alert_after: int = 3
     alerts_path: str = "alerts.jsonl"
     alerts: list[Alert] = field(default_factory=list)
+    db_path: str | None = None
 
     def __post_init__(self) -> None:
         self._consecutive: dict[str, int] = {}
@@ -70,6 +71,8 @@ class AlertEngine:
         self.alerts.append(alert)
         console.print(f"[bold red]🔴 {alert.message}[/bold red]")
         self._append_jsonl(alert)
+        if self.db_path:
+            self._append_sqlite(alert)
 
     def _append_jsonl(self, alert: Alert) -> None:
         with open(self.alerts_path, "a", encoding="utf-8") as fh:
@@ -87,3 +90,18 @@ class AlertEngine:
                 )
                 + "\n"
             )
+
+    def _append_sqlite(self, alert: Alert) -> None:
+        try:
+            from spaniq.monitor.timeline_store import TimelineStore
+            store = TimelineStore(self.db_path)
+            store.record_alert(
+                timestamp=alert.timestamp,
+                metric_name=alert.metric_name,
+                score=alert.score,
+                threshold=alert.threshold,
+                message=alert.message,
+                consecutive_count=alert.consecutive_count,
+            )
+        except Exception:
+            pass
