@@ -32,6 +32,25 @@ dependencies = [
 [project.optional-dependencies]
 langfuse = ["langfuse>=4.0.0"]
 groq = ["groq>=1.0.0"]
+otel = [
+    "opentelemetry-api>=1.20.0",
+    "opentelemetry-sdk>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
+    "opentelemetry-exporter-otlp-proto-http>=1.20.0",
+    "opentelemetry-semantic-conventions>=0.48b0",
+    "grpcio>=1.60.0",
+]
+dashboard = [
+    "streamlit>=1.30.0",
+    "plotly>=5.18.0",
+]
+benchmark = [
+    "deepeval>=1.0.0",
+    "ragas>=0.2.0",
+    "datasets>=2.14.0",
+    "groq>=1.0.0",
+]
+all = ["spaniq[otel,dashboard,langfuse,groq,benchmark]"]
 dev = [
     "pytest>=8.0",
     "pytest-xdist>=3.5",
