@@ -79,3 +79,10 @@ async def _judge_one(client, model, row) -> tuple[float, int, int]:
         return _parse_score(text), usage.prompt_tokens, usage.completion_tokens
     except Exception:
         return 0.5, 0, 0
+
+
+async def _judge_batch(client, model, rows) -> list[tuple[float, int, int]]:
+    """Judge all rows concurrently."""
+    import asyncio
+
+    return await asyncio.gather(*(_judge_one(client, model, r) for r in rows))
