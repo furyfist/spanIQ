@@ -132,3 +132,35 @@ def token_cost(prompt_tokens, completion_tokens):
 So the estimate is intentionally simple and symmetric: every token, input or output, costs $0.27 per million. The langfuse and groq runners read real `usage.prompt_tokens` / `usage.completion_tokens` from the Groq response; the ragas runner estimates tokens from sample text (~4 chars per token) because its faithfulness decomposition does not surface a single usage object. spaniq's cost is `0.0` because it never calls an LLM.
 
 This flat rate is the number the code actually computes and the number a reproducer will see. It is not a vendor-specific quote. For reference, mainstream hosted judge models are in the same order of magnitude (e.g. GPT-4o-mini lists $0.15/1M input and $0.60/1M output), but we deliberately do not bake a third-party price into the benchmark output, because that price drifts and the methodology should not. Treat the cost column as "production-equivalent token cost at a representative rate," not as a quote for any specific provider.
+
+## 7. How to reproduce
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/<username>/spaniq.git
+cd spaniq
+
+# 2. Install with benchmark dependencies
+pip install -e ".[benchmark]"
+
+# 3. (Optional) Set a Groq API key for the LLM-judge tools — free at console.groq.com
+export GROQ_API_KEY="your-key-here"
+
+# 4. Run spanIQ only — no API key needed, finishes in seconds
+spaniq benchmark --tool spaniq --runs 5
+
+# 5. Run the full suite (all five tools, 5 runs each)
+spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 5
+
+# 6. View results
+cat benchmarks/results/summary.md
+```
+
+The same suite can be run without the installed entry point via `python -m benchmarks.run_benchmark --tool spaniq --runs 5`.
+
+Notes:
+
+- The spaniq-only run requires no API key and is the fastest way to verify the std-dev = 0.0 claim.
+- Competitor runners skip gracefully if their dependency or `GROQ_API_KEY` is missing — you will see a `skipping <tool>: <reason>` line on stderr and that tool simply will not appear in the results table.
+- The ragas runner only accepts a dataset that has a `context` field; point it at `rag_retrieval` (the default `--dataset all` handles this).
+- Groq offers a free tier at console.groq.com with no credit card required.
