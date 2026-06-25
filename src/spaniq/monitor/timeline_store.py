@@ -131,7 +131,13 @@ class TimelineStore:
         last_n: int = 200,
         since: str | None = None,
         component: str | None = None,
+        ascending: bool = False,
     ) -> list[TimelineRow]:
+        """Return the last_n rows for a metric.
+
+        Newest-first by default (DESC). Pass ascending=True for chronological
+        order, e.g. when plotting left-to-right over time.
+        """
         sql = "SELECT * FROM timeline WHERE metric_name = ?"
         params: list = [metric_name]
         if since:
@@ -146,7 +152,7 @@ class TimelineStore:
         with self._conn() as conn:
             rows = conn.execute(sql, params).fetchall()
 
-        return list(reversed([
+        mapped = [
             TimelineRow(
                 id=r["id"],
                 trace_id=r["trace_id"],
@@ -160,7 +166,8 @@ class TimelineStore:
                 component=r["component"],
             )
             for r in rows
-        ]))
+        ]
+        return list(reversed(mapped)) if ascending else mapped
 
     def query_series(
         self,
@@ -168,7 +175,7 @@ class TimelineStore:
         metric_name: str,
         last_n: int = 500,
     ) -> list[float]:
-        rows = self.query(metric_name=metric_name, last_n=last_n, component=component)
+        rows = self.query(metric_name=metric_name, last_n=last_n, component=component, ascending=True)
         return [r.score for r in rows]
 
     def components(self) -> list[str]:
@@ -179,7 +186,7 @@ class TimelineStore:
         return [r[0] for r in rows]
 
     def summary(self, metric_name: str, last_n: int = 200) -> TimelineSummary:
-        rows = self.query(metric_name, last_n=last_n)
+        rows = self.query(metric_name, last_n=last_n, ascending=True)
         if not rows:
             return TimelineSummary(
                 metric_name=metric_name,

@@ -13,15 +13,20 @@ def _discrete_psi(baseline_freq: dict[str, int], current_freq: dict[str, int]) -
     PSI < 0.1: no drift, 0.1-0.25: moderate, >0.25: significant.
     """
     all_tokens = list(set(baseline_freq) | set(current_freq))
-    eps = 1e-6
+    if not all_tokens:
+        return 0.0
 
-    baseline_total = sum(baseline_freq.values()) + eps * len(all_tokens)
-    current_total = sum(current_freq.values()) + eps * len(all_tokens)
+    # Laplace smoothing: add 1 to every token on both sides so tokens missing
+    # from one distribution get a stable small probability instead of a
+    # near-zero spike that makes log(c/b) explode.
+    n = len(all_tokens)
+    baseline_total = sum(baseline_freq.values()) + n
+    current_total = sum(current_freq.values()) + n
 
     psi = 0.0
     for t in all_tokens:
-        b = (baseline_freq.get(t, 0) + eps) / baseline_total
-        c = (current_freq.get(t, 0) + eps) / current_total
+        b = (baseline_freq.get(t, 0) + 1) / baseline_total
+        c = (current_freq.get(t, 0) + 1) / current_total
         psi += (c - b) * np.log(c / b)
     return float(psi)
 
@@ -40,10 +45,16 @@ class ResponseDriftMetric(BaseMetric):
         if not test_case.baseline_outputs:
             raise ValueError("ResponseDriftMetric requires baseline_outputs")
 
-        baseline_dist = self._token_frequencies(" ".join(test_case.baseline_outputs))
         current_dist = self._token_frequencies(test_case.actual_output)
 
-        self.score = _discrete_psi(baseline_dist, current_dist)
+        # Drift = distance from the *nearest* known-good response. An output
+        # matching any baseline is not drift, so take the minimum PSI rather
+        # than comparing against the merged corpus (which inflates drift via
+        # vocabulary-size mismatch).
+        self.score = min(
+            _discrete_psi(self._token_frequencies(baseline), current_dist)
+            for baseline in test_case.baseline_outputs
+        )
         op = "<" if self.is_successful() else ">="
         self.reason = f"PSI {self.score:.4f} {op} threshold {self.threshold}"
         return self.score

@@ -62,11 +62,11 @@ def test_full_monitoring_pipeline(tmp_path):
 
     # 5. timeline is fully populated
     timeline = TimelineStore(db_path)
-    rows = timeline.query("ResponseDriftMetric", last_n=20)
+    rows = timeline.query("ResponseDriftMetric", last_n=20, ascending=True)
     assert len(rows) == 20
 
     # 6. first 10 (normal) should have a higher pass rate than last 10 (drifted)
-    # query() returns rows ascending by timestamp, so rows[:10] are normal traces
+    # ascending=True orders rows chronologically, so rows[:10] are normal traces
     normal_rows = rows[:10]
     drifted_rows = rows[10:]
     drifted_pass_rate = sum(r.passed for r in drifted_rows) / 10

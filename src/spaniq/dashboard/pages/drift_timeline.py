@@ -26,7 +26,7 @@ def render(config: DashboardConfig) -> None:
         return
 
     for comp in components:
-        rows = store.query(filters.metric, last_n=filters.last_n, component=comp)
+        rows = store.query(filters.metric, last_n=filters.last_n, component=comp, ascending=True)
         if not rows:
             st.caption(f"{comp}: no data for {filters.metric}")
             continue

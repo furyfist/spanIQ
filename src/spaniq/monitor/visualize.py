@@ -17,7 +17,7 @@ def export_timeline_png(
     matplotlib.use("Agg")  # non-interactive backend — safe in CLI and tests
     import matplotlib.pyplot as plt
 
-    rows = timeline_store.query(metric_name, last_n=last_n)
+    rows = timeline_store.query(metric_name, last_n=last_n, ascending=True)
     if not rows:
         console.print(f"[yellow]no data for {metric_name}[/yellow]")
         return output_path
@@ -55,7 +55,7 @@ def print_sparkline(
     last_n: int = 50,
 ) -> None:
     """Print a unicode sparkline of recent scores to the terminal."""
-    rows = timeline_store.query(metric_name, last_n=last_n)
+    rows = timeline_store.query(metric_name, last_n=last_n, ascending=True)
     if not rows:
         console.print(f"[yellow]{metric_name}: no data[/yellow]")
         return

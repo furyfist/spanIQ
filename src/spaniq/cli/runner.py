@@ -223,7 +223,7 @@ def _pipeline_status(args: argparse.Namespace) -> None:
     table.add_column("pass_rate", justify="right")
     for comp in comps:
         for metric in ["ResponseDriftMetric", "SemanticSimilarityMetric", "OutputStabilityMetric"]:
-            rows = store.query(metric, last_n=args.last, component=comp)
+            rows = store.query(metric, last_n=args.last, component=comp, ascending=True)
             if not rows:
                 continue
             import numpy as np

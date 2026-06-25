@@ -81,7 +81,7 @@ def _count_alerts(db_path: str) -> int:
 def _render_ingestion_chart(store) -> None:
     import plotly.graph_objects as go
 
-    rows = store.query("ResponseDriftMetric", last_n=100)
+    rows = store.query("ResponseDriftMetric", last_n=100, ascending=True)
     if not rows:
         st.caption("No traces yet.")
         return
