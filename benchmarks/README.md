@@ -16,6 +16,13 @@ spaniq benchmark --setup    # download full HF datasets
 Competitor runners need `GROQ_API_KEY`. Missing deps or key are skipped
 gracefully (the CLI prints `skipping <tool>: ...` and continues).
 
+The benchmark runner tests run without any API key — they assert the
+graceful-skip path and the score parser. Run them with:
+
+```bash
+python -m pytest tests/test_benchmark_runners.py -q
+```
+
 ## Runners
 
 | Tool       | Method                                    | Dataset        | Deterministic |
