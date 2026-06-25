@@ -234,3 +234,7 @@ This is what separates an honest benchmark from a vendor benchmark.
 **1. Default configurations.** Every competitor ran on its default settings. A user who tunes ragas's prompt or deepeval's G-Eval parameters might see lower variance. We benchmark the out-of-the-box experience, not the optimized one.
 
 **2. Same judge model for all LLM tools.** Every LLM-judge runner used `llama-3.3-70b-versatile` via Groq. In production, ragas and deepeval commonly default to GPT-4o. Different judge models have different variance characteristics. We hold the judge model constant on purpose, to isolate the *framework's* contribution to variance from the *model's*.
+
+**3. Small datasets.** The benchmark uses 20 / 8 / 8 items across the three datasets. At larger scales, LLM-judge variance on the *mean* may shrink (law of large numbers), but per-item variance remains. We benchmark at a scale typical of a developer's first evaluation run, not a production fleet.
+
+**4. Groq-specific inference.** Groq's engine may have different variance characteristics than OpenAI's. We chose Groq because it is free and accessible. The determinism claim generalizes regardless of provider: LLM non-determinism is inherent to the inference (GPU floating-point non-associativity, sampling), not specific to one vendor.
