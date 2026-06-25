@@ -12,7 +12,13 @@ import os
 import pathlib
 import time
 
+from benchmarks.runners._cost import token_cost
 from benchmarks.runners.spaniq_runner import BenchmarkResult, RunResult, _load_dataset
+
+
+def _est_tokens(text: str) -> int:
+    """Rough token estimate (~4 chars/token) for cost reporting."""
+    return max(1, len(text) // 4)
 
 
 def _check_deps() -> None:
@@ -94,13 +100,23 @@ def run_ragas_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benchma
                 out.append(0.5)
         return out
 
+    # Faithfulness decomposes answer + context into claims; estimate judge cost
+    # from the sample text (Groq is free, but we report the production-equivalent).
+    run_cost = sum(
+        token_cost(
+            _est_tokens(r["input"] + r.get("context", "") + r["output"]),
+            _est_tokens(r["output"]),
+        )
+        for r in rows
+    )
+
     for run_idx in range(n_runs):
         scorer = Faithfulness(llm=llm)
         start = time.perf_counter()
         scores = asyncio.run(_score_all(scorer))
         elapsed = time.perf_counter() - start
 
-        result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=0.0))
+        result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=run_cost))
         print(f"    ragas run {run_idx + 1}/{n_runs}: mean={sum(scores)/len(scores):.3f} t={elapsed:.1f}s")
 
     return result
