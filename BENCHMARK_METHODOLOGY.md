@@ -252,3 +252,19 @@ This is what separates an honest benchmark from a vendor benchmark.
 | 2026-06-25 | Initial benchmark: 5 tools, 20/8/8-item datasets, Groq `llama-3.3-70b-versatile` judge. spaniq rows live; competitor rows pending a keyed run. |
 
 This methodology document is versioned alongside the code. If the benchmark changes — new tools, new datasets, a new judge model — this document is updated in the same commit.
+
+## Appendix — pricing reference
+
+The cost column uses one rate, defined in `benchmarks/runners/_cost.py` and reproduced here:
+
+```
+Benchmark judge (llama-3.3-70b-versatile via Groq free tier):
+  Actual cost: $0.00
+
+Production-equivalent estimate (used for the cost column):
+  $0.27 per 1M tokens, applied symmetrically to input and output
+  per_trace_cost   = (prompt_tokens + completion_tokens) * 0.27 / 1_000_000
+  cost_per_100     = per_trace_cost * 100
+```
+
+We do not hardcode a third-party provider's price into the benchmark output, because those prices drift and would silently make the numbers wrong. The flat rate is a stable, reproducible proxy. For orientation only, hosted small-judge models at the time of writing are in the same order of magnitude (e.g. GPT-4o-mini around $0.15/1M input and $0.60/1M output) — but verify current pricing at the provider before quoting a real production figure.
