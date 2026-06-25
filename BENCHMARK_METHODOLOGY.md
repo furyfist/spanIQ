@@ -79,3 +79,24 @@ Three JSONL datasets live in `benchmarks/datasets/`. All are synthetic and commi
 - Source: synthetic, committed to repo
 
 The ragas runner explicitly errors if asked to score a dataset with no `context` field, which is why it is paired with `rag_retrieval.jsonl`.
+
+## 5. Benchmark configuration
+
+```
+Python version:   3.12.7
+OS (publish run): Windows 11
+Judge model:      llama-3.3-70b-versatile (via Groq, OpenAI-compatible endpoint)
+Judge temperature: 0.0 (set explicitly in every LLM-judge runner)
+Runs per tool:    5 (each tool evaluates the full dataset 5 times)
+Groq API tier:    free
+```
+
+Parallelism, read from the runners:
+
+- **spaniq** — sequential, runs the metric over all items per run.
+- **groq** — sequential, with a 0.05s courtesy sleep between items to respect rate limits.
+- **deepeval** — sequential, one G-Eval `measure()` per item.
+- **ragas** — sequential per item, inside an `asyncio.run` per run.
+- **langfuse** — concurrent: all items in a run are judged together via `asyncio.gather`.
+
+Every LLM-judge runner wraps its per-item call in a try/except that falls back to a neutral score of `0.5` on error, so a transient API failure degrades one item rather than aborting the run.
