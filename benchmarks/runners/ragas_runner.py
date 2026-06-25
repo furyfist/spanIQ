@@ -28,6 +28,26 @@ def _check_deps() -> None:
         raise EnvironmentError("GROQ_API_KEY not set")
 
 
+def _to_samples(rows: list[dict]) -> list:
+    """Convert dataset rows to ragas SingleTurnSample objects.
+
+    rag_retrieval.jsonl fields: input, output, reference_output, context
+    (context is a single string, wrapped into the required list form).
+    """
+    from ragas.dataset_schema import SingleTurnSample
+
+    samples = []
+    for row in rows:
+        context = row.get("context", row.get("reference_output", ""))
+        samples.append(SingleTurnSample(
+            user_input=row["input"],
+            response=row["output"],
+            retrieved_contexts=[context],
+            reference=row.get("reference_output", ""),
+        ))
+    return samples
+
+
 def run_ragas_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> BenchmarkResult:
     _check_deps()
     path = pathlib.Path(dataset_path)
