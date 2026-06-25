@@ -37,3 +37,21 @@ The point of this framing: here is what the numbers prove and here is the bounda
 > spanIQ produces identical scores on identical inputs, every time, at $0 cost. LLM-as-judge tools produce different scores on every run.
 
 This benchmark exists to let you verify that claim yourself. The determinism half is provable from a single run with no API key (Section 7). The variance half requires running the LLM-judge tools against a real model.
+
+## 3. Tools benchmarked
+
+Five runners live in `benchmarks/runners/`. Versions below come from `pyproject.toml` (the `benchmark` optional-dependency group); judge model and scoring come from each runner file.
+
+| Tool | Version constraint | What it evaluates | Judge model | How it scores |
+|---|---|---|---|---|
+| **spaniq** | 0.4.0 | `SemanticSimilarityMetric` (embedding cosine similarity, deterministic) | None | 0–1 similarity to the expected output |
+| **groq** | `groq>=1.0.0` | Custom LLM-as-judge prompt | `llama-3.3-70b-versatile` via Groq | 1–10 integer, normalized to 0–1 |
+| **deepeval** | `deepeval>=1.0.0` | G-Eval correctness | `llama-3.3-70b-versatile` via Groq | 0–1 (G-Eval score) |
+| **ragas** | `ragas>=0.4.0,<1.0.0` | Faithfulness (collections API) | `llama-3.3-70b-versatile` via Groq | 0–1 (supported claims / total claims) |
+| **langfuse** | N/A (custom) | LLM-as-judge prompt replicating Langfuse's methodology | `llama-3.3-70b-versatile` via Groq | 1–10, JSON output, normalized to 0–1 |
+
+Notes from reading the runners:
+
+- The spaniq runner (`spaniq_runner.py`) runs `SemanticSimilarityMetric` through `spaniq.core.evaluate.evaluate`. It makes no LLM calls and reports `cost_usd=0.0` for every run.
+- The groq, deepeval, ragas, and langfuse runners all set judge `temperature=0.0` and all point at the same Groq model so the only variable between them is the framework.
+- **Langfuse runner caveat:** this runner replicates the LLM-as-a-Judge evaluation *methodology* that Langfuse provides in its platform. It does not call Langfuse servers and does not use the Langfuse SDK. The prompt template (structured input, 1–10 scale, JSON score + reasoning) and the judge call match what a Langfuse user configures in the UI. We benchmark the evaluation methodology, not the platform integration.
