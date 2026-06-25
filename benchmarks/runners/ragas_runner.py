@@ -87,6 +87,11 @@ def run_ragas_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benchma
 
     path = pathlib.Path(dataset_path)
     rows = _load_dataset(path)
+    if not any(r.get("context") for r in rows):
+        raise ValueError(
+            f"ragas faithfulness needs retrieved context; {path.name} has none — "
+            "use the rag_retrieval dataset"
+        )
     samples = _to_samples(rows)
     llm = _get_ragas_llm()
     result = BenchmarkResult(tool="ragas", dataset=path.stem)
