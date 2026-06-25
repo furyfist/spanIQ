@@ -7,4 +7,5 @@ __pycache__/
 dist/
 .pytest_cache/
 .ruff_cache/
+benchmarks/results/
 
