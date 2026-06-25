@@ -42,8 +42,15 @@ def _run_tool(tool: str, dataset_name: str, dataset_path: pathlib.Path,
         try:
             from benchmarks.runners.ragas_runner import run_ragas_eval
             return run_ragas_eval(dataset_path, n_runs=runs)
-        except (ImportError, EnvironmentError) as exc:
+        except (ImportError, EnvironmentError, ValueError) as exc:
             print(f"    skipping ragas: {exc}", file=sys.stderr)
+            return None
+    elif tool == "langfuse":
+        try:
+            from benchmarks.runners.langfuse_runner import run_langfuse_eval
+            return run_langfuse_eval(dataset_path, n_runs=runs)
+        except (ImportError, EnvironmentError) as exc:
+            print(f"    skipping langfuse: {exc}", file=sys.stderr)
             return None
     else:
         print(f"    unknown tool: {tool}", file=sys.stderr)
