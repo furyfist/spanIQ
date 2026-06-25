@@ -43,6 +43,16 @@ def test_report_csv_saves_correctly():
         assert "mean_score" in content
 
 
+def test_ragas_runner_skips_without_deps(monkeypatch):
+    """ragas runner raises (CLI-caught skip) when ragas/key are missing."""
+    from benchmarks.runners.ragas_runner import run_ragas_eval
+
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    rag_path = DATASET_FILES["rag_retrieval"]
+    with pytest.raises((ImportError, EnvironmentError)):
+        run_ragas_eval(rag_path, n_runs=1)
+
+
 def test_report_summary_md_contains_std_dev():
     from benchmarks.analysis.report import save_summary_md
     result = run_spaniq_eval(QA_PATH, n_runs=2)
