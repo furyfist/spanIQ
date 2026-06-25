@@ -212,3 +212,17 @@ Mean wall-clock per full-dataset run, from the same live spaniq run. Per-trace i
 | langfuse | qa_factual | [PENDING] | [PENDING] |
 
 The first spaniq dataset carries the one-time cost of loading the embedding model, which is why qa_factual is slower than the two datasets evaluated after it in the same process. The LLM-judge rows are network-bound and will be dominated by per-item API latency.
+
+## 9. Raw run logs
+
+Every run writes its artifacts to `benchmarks/results/`:
+
+```
+benchmarks/results/
+├── results.csv          # one row per tool+dataset: mean, std dev, variance, time, cost, per-run means
+├── results.json         # same data, machine-readable
+├── summary.md           # human-readable comparison table
+└── variance_chart.html  # per-run mean score, plotted per tool
+```
+
+`results.csv` and `results.json` both include a `run_scores` field — the list of per-run mean scores — so anyone can recompute the std dev from the raw inputs and confirm the variance numbers in Section 8. The CSV is the "show your work" artifact: the variance column is derived from `run_scores` using the formula in Section 6, nothing hidden.
