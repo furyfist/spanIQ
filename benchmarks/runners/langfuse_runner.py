@@ -45,3 +45,37 @@ def _check_deps() -> None:
         import openai  # noqa: F401
     except ImportError as exc:
         raise ImportError("openai SDK not installed — run: pip install openai") from exc
+
+
+def _parse_score(text: str) -> float:
+    """Parse a 0-1 score from the judge's JSON (or loose-number) response."""
+    import json
+    import re
+
+    try:
+        return min(max(float(json.loads(text)["score"]) / 10.0, 0.0), 1.0)
+    except (json.JSONDecodeError, KeyError, TypeError, ValueError):
+        match = re.search(r"\d+(?:\.\d+)?", text)
+        if match:
+            return min(float(match.group()) / 10.0, 1.0)
+        return 0.5
+
+
+async def _judge_one(client, model, row) -> tuple[float, int, int]:
+    """Run one judge call; return (score 0-1, prompt_tokens, completion_tokens)."""
+    prompt = _JUDGE_PROMPT.format(
+        input=row["input"],
+        expected=row.get("reference_output", ""),
+        output=row["output"],
+    )
+    try:
+        resp = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.0,
+        )
+        text = (resp.choices[0].message.content or "").strip()
+        usage = resp.usage
+        return _parse_score(text), usage.prompt_tokens, usage.completion_tokens
+    except Exception:
+        return 0.5, 0, 0
