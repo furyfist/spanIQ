@@ -119,3 +119,16 @@ spanIQ's std dev is exactly `0.0` because it makes no LLM calls and the embeddin
 **Execution time.** Wall-clock per full-dataset run, measured with `time.perf_counter()` around each run, reported as the mean across the N runs.
 
 **Benchmark cost (Groq).** $0.00 for every tool — this is the actual cost incurred, because the runs use Groq's free tier. The non-zero numbers in the cost column are the *estimated production cost* defined next, not money spent.
+
+**Estimated production cost.** The LLM-judge runners track token usage and apply a single flat rate, defined once in `benchmarks/runners/_cost.py`:
+
+```python
+_RATE_PER_MILLION = 0.27  # USD per 1M tokens, applied to both input and output
+
+def token_cost(prompt_tokens, completion_tokens):
+    return (prompt_tokens + completion_tokens) * _RATE_PER_MILLION / 1_000_000
+```
+
+So the estimate is intentionally simple and symmetric: every token, input or output, costs $0.27 per million. The langfuse and groq runners read real `usage.prompt_tokens` / `usage.completion_tokens` from the Groq response; the ragas runner estimates tokens from sample text (~4 chars per token) because its faithfulness decomposition does not surface a single usage object. spaniq's cost is `0.0` because it never calls an LLM.
+
+This flat rate is the number the code actually computes and the number a reproducer will see. It is not a vendor-specific quote. For reference, mainstream hosted judge models are in the same order of magnitude (e.g. GPT-4o-mini lists $0.15/1M input and $0.60/1M output), but we deliberately do not bake a third-party price into the benchmark output, because that price drifts and the methodology should not. Treat the cost column as "production-equivalent token cost at a representative rate," not as a quote for any specific provider.
