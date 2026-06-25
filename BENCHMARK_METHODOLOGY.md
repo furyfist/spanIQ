@@ -238,3 +238,9 @@ This is what separates an honest benchmark from a vendor benchmark.
 **3. Small datasets.** The benchmark uses 20 / 8 / 8 items across the three datasets. At larger scales, LLM-judge variance on the *mean* may shrink (law of large numbers), but per-item variance remains. We benchmark at a scale typical of a developer's first evaluation run, not a production fleet.
 
 **4. Groq-specific inference.** Groq's engine may have different variance characteristics than OpenAI's. We chose Groq because it is free and accessible. The determinism claim generalizes regardless of provider: LLM non-determinism is inherent to the inference (GPU floating-point non-associativity, sampling), not specific to one vendor.
+
+**5. Different score scales.** spanIQ scores are embedding similarities (0–1); LLM-judge scores are quality ratings (0–1 or 1–10 normalized). The comparison is about *variance*, not absolute scores. A deterministic metric on a different scale is still deterministic. Do not read the spaniq mean and a judge mean as measuring the same thing.
+
+**6. Langfuse runner is a local replica.** The `langfuse` runner replicates Langfuse's LLM-as-a-Judge methodology locally. It does not call Langfuse servers or use the Langfuse SDK. The prompt template and scoring match what a Langfuse user configures. We benchmark the evaluation methodology, not the platform.
+
+**7. What spanIQ cannot do that LLM-judges can.** LLM-as-judge tools assess subjective quality — helpfulness, tone, reasoning correctness — that a statistical metric cannot. spanIQ's determinism comes from measuring distributional and embedding properties, not semantic understanding. If your question is "was this answer helpful?", you need an LLM judge. If your question is "has this output drifted from baseline?", spanIQ gives you a deterministic, free answer. They are complementary, not interchangeable.
