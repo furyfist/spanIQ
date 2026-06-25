@@ -55,3 +55,27 @@ Notes from reading the runners:
 - The spaniq runner (`spaniq_runner.py`) runs `SemanticSimilarityMetric` through `spaniq.core.evaluate.evaluate`. It makes no LLM calls and reports `cost_usd=0.0` for every run.
 - The groq, deepeval, ragas, and langfuse runners all set judge `temperature=0.0` and all point at the same Groq model so the only variable between them is the framework.
 - **Langfuse runner caveat:** this runner replicates the LLM-as-a-Judge evaluation *methodology* that Langfuse provides in its platform. It does not call Langfuse servers and does not use the Langfuse SDK. The prompt template (structured input, 1–10 scale, JSON score + reasoning) and the judge call match what a Langfuse user configures in the UI. We benchmark the evaluation methodology, not the platform integration.
+
+## 4. Datasets
+
+Three JSONL datasets live in `benchmarks/datasets/`. All are synthetic and committed to the repo, so a reproducer runs against the exact same inputs. Record counts and field names below were read directly from the files.
+
+**qa_factual.jsonl** — 20 records
+
+- Fields: `input` (question), `reference_output` (ground truth), `output` (the answer being scored), `category`, `source`
+- Used by: spaniq, groq, deepeval, langfuse
+- Source: synthetic, committed to repo
+
+**summarization.jsonl** — 8 records
+
+- Fields: `input` (source text), `reference_output` (reference summary), `output` (summary being scored), `category`, `source`
+- Used by: spaniq, groq, deepeval, langfuse
+- Source: synthetic, committed to repo
+
+**rag_retrieval.jsonl** — 8 records
+
+- Fields: `input` (question), `context` (retrieved passage), `reference_output` (ground truth), `output` (answer being scored), `category`, `source`
+- Used by: ragas (the only runner that requires `context`, for its faithfulness metric); also usable by spaniq, groq, deepeval, langfuse
+- Source: synthetic, committed to repo
+
+The ragas runner explicitly errors if asked to score a dataset with no `context` field, which is why it is paired with `rag_retrieval.jsonl`.
