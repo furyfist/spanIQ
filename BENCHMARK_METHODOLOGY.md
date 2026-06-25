@@ -226,3 +226,11 @@ benchmarks/results/
 ```
 
 `results.csv` and `results.json` both include a `run_scores` field — the list of per-run mean scores — so anyone can recompute the std dev from the raw inputs and confirm the variance numbers in Section 8. The CSV is the "show your work" artifact: the variance column is derived from `run_scores` using the formula in Section 6, nothing hidden.
+
+## 10. Known limitations and fairness statement
+
+This is what separates an honest benchmark from a vendor benchmark.
+
+**1. Default configurations.** Every competitor ran on its default settings. A user who tunes ragas's prompt or deepeval's G-Eval parameters might see lower variance. We benchmark the out-of-the-box experience, not the optimized one.
+
+**2. Same judge model for all LLM tools.** Every LLM-judge runner used `llama-3.3-70b-versatile` via Groq. In production, ragas and deepeval commonly default to GPT-4o. Different judge models have different variance characteristics. We hold the judge model constant on purpose, to isolate the *framework's* contribution to variance from the *model's*.
