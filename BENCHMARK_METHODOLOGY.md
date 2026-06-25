@@ -244,3 +244,11 @@ This is what separates an honest benchmark from a vendor benchmark.
 **6. Langfuse runner is a local replica.** The `langfuse` runner replicates Langfuse's LLM-as-a-Judge methodology locally. It does not call Langfuse servers or use the Langfuse SDK. The prompt template and scoring match what a Langfuse user configures. We benchmark the evaluation methodology, not the platform.
 
 **7. What spanIQ cannot do that LLM-judges can.** LLM-as-judge tools assess subjective quality — helpfulness, tone, reasoning correctness — that a statistical metric cannot. spanIQ's determinism comes from measuring distributional and embedding properties, not semantic understanding. If your question is "was this answer helpful?", you need an LLM judge. If your question is "has this output drifted from baseline?", spanIQ gives you a deterministic, free answer. They are complementary, not interchangeable.
+
+## 11. Version history
+
+| Date | Change |
+|---|---|
+| 2026-06-25 | Initial benchmark: 5 tools, 20/8/8-item datasets, Groq `llama-3.3-70b-versatile` judge. spaniq rows live; competitor rows pending a keyed run. |
+
+This methodology document is versioned alongside the code. If the benchmark changes — new tools, new datasets, a new judge model — this document is updated in the same commit.
