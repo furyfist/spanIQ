@@ -516,7 +516,7 @@ def _build_parser() -> argparse.ArgumentParser:
     # ── benchmark ─────────────────────────────────────────────────────────────
     bench_p = sub.add_parser("benchmark", help="run the determinism benchmark suite")
     bench_p.add_argument("--tool", default="spaniq",
-                         help="comma-separated tools to benchmark: spaniq,deepeval,ragas,groq")
+                         help="comma-separated tools to benchmark: spaniq,deepeval,ragas,groq,langfuse")
     bench_p.add_argument("--dataset", default="all",
                          help="dataset to use: qa_factual, summarization, rag_retrieval, all")
     bench_p.add_argument("--runs", type=int, default=5, help="number of identical runs per tool")
