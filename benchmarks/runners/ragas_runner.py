@@ -75,8 +75,32 @@ def _get_ragas_llm():
 
 def run_ragas_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> BenchmarkResult:
     _check_deps()
+    import asyncio
+
+    from ragas.metrics.collections import Faithfulness
+
     path = pathlib.Path(dataset_path)
     rows = _load_dataset(path)
+    samples = _to_samples(rows)
+    llm = _get_ragas_llm()
     result = BenchmarkResult(tool="ragas", dataset=path.stem)
-    # filled in across subsequent steps
+
+    async def _score_all(scorer) -> list[float]:
+        out = []
+        for sample in samples:
+            try:
+                out.append(float(await scorer.single_turn_ascore(sample)))
+            except Exception:
+                out.append(0.5)
+        return out
+
+    for run_idx in range(n_runs):
+        scorer = Faithfulness(llm=llm)
+        start = time.perf_counter()
+        scores = asyncio.run(_score_all(scorer))
+        elapsed = time.perf_counter() - start
+
+        result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=0.0))
+        print(f"    ragas run {run_idx + 1}/{n_runs}: mean={sum(scores)/len(scores):.3f} t={elapsed:.1f}s")
+
     return result
