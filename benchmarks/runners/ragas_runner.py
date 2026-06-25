@@ -48,6 +48,31 @@ def _to_samples(rows: list[dict]) -> list:
     return samples
 
 
+def _get_ragas_llm():
+    """Build a ragas judge LLM backed by Groq's OpenAI-compatible endpoint.
+
+    Tries llm_factory with an AsyncOpenAI client pointed at Groq first; if the
+    v0.4 factory rejects a non-OpenAI client, falls back to wrapping a LangChain
+    ChatOpenAI on the same base_url.
+    """
+    from ragas.llms import llm_factory
+    from openai import AsyncOpenAI
+
+    api_key = os.environ["GROQ_API_KEY"]
+    base_url = "https://api.groq.com/openai/v1"
+    model = "llama-3.3-70b-versatile"
+
+    client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+    try:
+        return llm_factory(model, client=client)
+    except Exception:
+        from langchain_openai import ChatOpenAI
+        from ragas.llms import LangchainLLMWrapper
+
+        chat = ChatOpenAI(model=model, api_key=api_key, base_url=base_url, temperature=0.0)
+        return LangchainLLMWrapper(chat)
+
+
 def run_ragas_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> BenchmarkResult:
     _check_deps()
     path = pathlib.Path(dataset_path)
