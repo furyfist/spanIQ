@@ -182,3 +182,17 @@ The spaniq rows below are from a live run on the configuration in Section 5 (Pyt
 | langfuse | qa_factual | [PENDING] | [PENDING] | 5 |
 
 spanIQ's std dev is `0.0000` on every dataset across 5 runs: identical scores on identical inputs. The pending rows are expected to show non-zero std dev, since the judge model samples non-deterministically even at `temperature=0.0`.
+
+### Table 2 — Cost comparison
+
+Benchmark cost is the money actually spent (Groq free tier: $0.00 for all). Estimated production cost applies the flat $0.27/1M token rate from Section 6 to the tokens each tool consumes, scaled to 100 traces.
+
+| Tool | Benchmark Cost (Groq) | Est. Production Cost / 100 traces |
+|---|---|---|
+| spaniq | $0.00 | $0.00 (no LLM calls) |
+| groq | $0.00 | [PENDING] |
+| deepeval | $0.00 | [PENDING] |
+| ragas | $0.00 | [PENDING] |
+| langfuse | $0.00 | [PENDING] |
+
+spanIQ's production cost is structurally $0.00: it never calls an LLM, so there are no tokens to bill. The pending estimates come straight from the token counts the runners record during a live judge run.
