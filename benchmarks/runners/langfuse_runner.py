@@ -86,3 +86,36 @@ async def _judge_batch(client, model, rows) -> list[tuple[float, int, int]]:
     import asyncio
 
     return await asyncio.gather(*(_judge_one(client, model, r) for r in rows))
+
+
+def _get_client():
+    """Async Groq client via the OpenAI-compatible endpoint."""
+    from openai import AsyncOpenAI
+
+    client = AsyncOpenAI(
+        api_key=os.environ["GROQ_API_KEY"],
+        base_url="https://api.groq.com/openai/v1",
+    )
+    return client, "llama-3.3-70b-versatile"
+
+
+def run_langfuse_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> BenchmarkResult:
+    """Run the Langfuse-style LLM-as-judge on the dataset N times."""
+    _check_deps()
+    import asyncio
+
+    path = pathlib.Path(dataset_path)
+    rows = _load_dataset(path)
+    client, model = _get_client()
+    result = BenchmarkResult(tool="langfuse", dataset=path.stem)
+
+    for run_idx in range(n_runs):
+        start = time.perf_counter()
+        judged = asyncio.run(_judge_batch(client, model, rows))
+        elapsed = time.perf_counter() - start
+
+        scores = [s for s, _, _ in judged]
+        result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=0.0))
+        print(f"    langfuse run {run_idx + 1}/{n_runs}: mean={sum(scores)/len(scores):.3f} t={elapsed:.1f}s")
+
+    return result
