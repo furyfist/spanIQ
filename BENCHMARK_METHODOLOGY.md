@@ -164,3 +164,21 @@ Notes:
 - Competitor runners skip gracefully if their dependency or `GROQ_API_KEY` is missing — you will see a `skipping <tool>: <reason>` line on stderr and that tool simply will not appear in the results table.
 - The ragas runner only accepts a dataset that has a `context` field; point it at `rag_retrieval` (the default `--dataset all` handles this).
 - Groq offers a free tier at console.groq.com with no credit card required.
+
+## 8. Results
+
+The spaniq rows below are from a live run on the configuration in Section 5 (Python 3.12.7, Windows, 5 runs per dataset). The competitor rows require `GROQ_API_KEY`, which was not set at publish time, so they are marked `[PENDING]` and will be filled in from a live judge run.
+
+### Table 1 — Score variance (the proof)
+
+| Tool | Dataset | Mean Score | Std Dev | Runs |
+|---|---|---|---|---|
+| spaniq | qa_factual | 0.5890 | **0.0000** | 5 |
+| spaniq | summarization | 1.0000 | **0.0000** | 5 |
+| spaniq | rag_retrieval | 1.0000 | **0.0000** | 5 |
+| groq | qa_factual | [PENDING] | [PENDING] | 5 |
+| deepeval | qa_factual | [PENDING] | [PENDING] | 5 |
+| ragas | rag_retrieval | [PENDING] | [PENDING] | 5 |
+| langfuse | qa_factual | [PENDING] | [PENDING] | 5 |
+
+spanIQ's std dev is `0.0000` on every dataset across 5 runs: identical scores on identical inputs. The pending rows are expected to show non-zero std dev, since the judge model samples non-deterministically even at `temperature=0.0`.
