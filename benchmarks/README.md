@@ -5,6 +5,10 @@ score variance across N identical runs. The headline claim: spanIQ's std dev is
 exactly 0.0000 (deterministic, no LLM judge), while every LLM-as-judge tool
 shows non-zero spread.
 
+For the full methodology — what is and isn't measured, datasets, metric
+formulas, cost model, reproduction steps, and the fairness statement — see
+[BENCHMARK_METHODOLOGY.md](../BENCHMARK_METHODOLOGY.md) in the repo root.
+
 ## Running
 
 ```bash
