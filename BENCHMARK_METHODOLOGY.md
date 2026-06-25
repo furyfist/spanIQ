@@ -196,3 +196,19 @@ Benchmark cost is the money actually spent (Groq free tier: $0.00 for all). Esti
 | langfuse | $0.00 | [PENDING] |
 
 spanIQ's production cost is structurally $0.00: it never calls an LLM, so there are no tokens to bill. The pending estimates come straight from the token counts the runners record during a live judge run.
+
+### Table 3 — Execution time
+
+Mean wall-clock per full-dataset run, from the same live spaniq run. Per-trace is mean time divided by the dataset's item count (qa_factual = 20, summarization = 8, rag_retrieval = 8).
+
+| Tool | Dataset | Mean Time | Per-trace |
+|---|---|---|---|
+| spaniq | qa_factual | 3.23s | 0.162s |
+| spaniq | summarization | 0.12s | 0.015s |
+| spaniq | rag_retrieval | 0.11s | 0.014s |
+| groq | qa_factual | [PENDING] | [PENDING] |
+| deepeval | qa_factual | [PENDING] | [PENDING] |
+| ragas | rag_retrieval | [PENDING] | [PENDING] |
+| langfuse | qa_factual | [PENDING] | [PENDING] |
+
+The first spaniq dataset carries the one-time cost of loading the embedding model, which is why qa_factual is slower than the two datasets evaluated after it in the same process. The LLM-judge rows are network-bound and will be dominated by per-item API latency.
