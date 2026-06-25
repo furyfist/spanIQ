@@ -14,6 +14,7 @@ import os
 import pathlib
 import time
 
+from benchmarks.runners._cost import token_cost
 from benchmarks.runners.spaniq_runner import BenchmarkResult, RunResult, _load_dataset
 
 
@@ -115,7 +116,8 @@ def run_langfuse_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benc
         elapsed = time.perf_counter() - start
 
         scores = [s for s, _, _ in judged]
-        result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=0.0))
+        cost = sum(token_cost(pt, ct) for _, pt, ct in judged)
+        result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=cost))
         print(f"    langfuse run {run_idx + 1}/{n_runs}: mean={sum(scores)/len(scores):.3f} t={elapsed:.1f}s")
 
     return result
