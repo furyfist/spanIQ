@@ -53,6 +53,24 @@ def test_ragas_runner_skips_without_deps(monkeypatch):
         run_ragas_eval(rag_path, n_runs=1)
 
 
+def test_langfuse_runner_skips_without_key(monkeypatch):
+    """langfuse-style runner raises when no Groq key is set."""
+    from benchmarks.runners.langfuse_runner import run_langfuse_eval
+
+    monkeypatch.delenv("GROQ_API_KEY", raising=False)
+    with pytest.raises(EnvironmentError):
+        run_langfuse_eval(QA_PATH, n_runs=1)
+
+
+def test_langfuse_parse_score():
+    """Score parser handles JSON, loose numbers, and garbage."""
+    from benchmarks.runners.langfuse_runner import _parse_score
+
+    assert _parse_score('{"score": 8, "reasoning": "ok"}') == pytest.approx(0.8)
+    assert _parse_score("rated 7 out of 10") == pytest.approx(0.7)
+    assert _parse_score("no number here") == pytest.approx(0.5)
+
+
 def test_report_summary_md_contains_std_dev():
     from benchmarks.analysis.report import save_summary_md
     result = run_spaniq_eval(QA_PATH, n_runs=2)
