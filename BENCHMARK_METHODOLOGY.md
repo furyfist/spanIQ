@@ -100,3 +100,22 @@ Parallelism, read from the runners:
 - **langfuse** — concurrent: all items in a run are judged together via `asyncio.gather`.
 
 Every LLM-judge runner wraps its per-item call in a try/except that falls back to a neutral score of `0.5` on error, so a transient API failure degrades one item rather than aborting the run.
+
+## 6. Metric definitions
+
+These are computed in `benchmarks/runners/spaniq_runner.py` (`BenchmarkResult`) and rendered in `benchmarks/analysis/report.py`. Definitions match the code exactly.
+
+**Score variance (the primary metric).** For each run, take the mean of that run's per-item scores. Collect the N per-run means. The reported variance is the population variance of those means, and the reported std dev is its square root:
+
+```
+Given N runs, each producing a mean score μ_i:
+  M = (1/N) Σ μ_i               # mean of the run means
+  variance = (1/N) Σ (μ_i − M)²  # population variance
+  std_dev  = sqrt(variance)
+```
+
+spanIQ's std dev is exactly `0.0` because it makes no LLM calls and the embedding similarity is deterministic. LLM-judge tools produce a non-zero std dev driven by sampling and floating-point non-determinism in the judge model.
+
+**Execution time.** Wall-clock per full-dataset run, measured with `time.perf_counter()` around each run, reported as the mean across the N runs.
+
+**Benchmark cost (Groq).** $0.00 for every tool — this is the actual cost incurred, because the runs use Groq's free tier. The non-zero numbers in the cost column are the *estimated production cost* defined next, not money spent.
