@@ -31,3 +31,9 @@ This is the most important section. The claim is narrow on purpose.
 - The optimal configuration of any competitor. All tools run on their default settings.
 
 The point of this framing: here is what the numbers prove and here is the boundary. A deterministic statistical metric and an LLM judge measure different things — this benchmark compares their *stability*, not their *insight*. See Section 10 for where each kind of tool is the right choice.
+
+## 2. The claim
+
+> spanIQ produces identical scores on identical inputs, every time, at $0 cost. LLM-as-judge tools produce different scores on every run.
+
+This benchmark exists to let you verify that claim yourself. The determinism half is provable from a single run with no API key (Section 7). The variance half requires running the LLM-judge tools against a real model.
