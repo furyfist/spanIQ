@@ -14,14 +14,21 @@ def run_deepeval_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benc
     try:
         from deepeval import evaluate as dv_evaluate
         from deepeval.metrics import GEval
-        from deepeval.models.gpt_model import GPTModel
+        from deepeval.models.llms import GPTModel
         from deepeval.test_case import LLMTestCase, LLMTestCaseParams
     except ImportError:
         raise ImportError("deepeval not installed — run: pip install deepeval")
 
     import os
-    if not os.environ.get("GROQ_API_KEY"):
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
         raise EnvironmentError("GROQ_API_KEY not set")
+
+    groq_model = GPTModel(
+        model="llama-3.3-70b-versatile",
+        api_key=api_key,
+        base_url="https://api.groq.com/openai/v1",
+    )
 
     path = pathlib.Path(dataset_path)
     rows = _load_dataset(path)
@@ -36,6 +43,7 @@ def run_deepeval_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benc
             criteria="Does the actual output correctly answer the question given the expected output?",
             evaluation_params=[LLMTestCaseParams.INPUT, LLMTestCaseParams.ACTUAL_OUTPUT,
                                LLMTestCaseParams.EXPECTED_OUTPUT],
+            model=groq_model,
         )
 
         for row in rows:

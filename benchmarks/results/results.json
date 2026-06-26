@@ -1,0 +1,182 @@
+[
+  {
+    "tool": "spaniq",
+    "dataset": "qa_factual",
+    "n_runs": 3,
+    "mean_score": 0.589,
+    "std_dev": 0.0,
+    "variance": 0.0,
+    "mean_time_sec": 8.8,
+    "total_cost_usd": 0.0,
+    "run_scores": [
+      0.589,
+      0.589,
+      0.589
+    ]
+  },
+  {
+    "tool": "groq-llm-judge",
+    "dataset": "qa_factual",
+    "n_runs": 3,
+    "mean_score": 1.0,
+    "std_dev": 0.0,
+    "variance": 0.0,
+    "mean_time_sec": 26.65,
+    "total_cost_usd": 0.001895,
+    "run_scores": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "tool": "deepeval",
+    "dataset": "qa_factual",
+    "n_runs": 3,
+    "mean_score": 0.6533,
+    "std_dev": 0.0309,
+    "variance": 0.000956,
+    "mean_time_sec": 61.61,
+    "total_cost_usd": 0.0,
+    "run_scores": [
+      0.67,
+      0.68,
+      0.61
+    ]
+  },
+  {
+    "tool": "langfuse",
+    "dataset": "qa_factual",
+    "n_runs": 3,
+    "mean_score": 0.5583,
+    "std_dev": 0.0312,
+    "variance": 0.000972,
+    "mean_time_sec": 3.94,
+    "total_cost_usd": 0.00035,
+    "run_scores": [
+      0.6,
+      0.525,
+      0.55
+    ]
+  },
+  {
+    "tool": "spaniq",
+    "dataset": "summarization",
+    "n_runs": 3,
+    "mean_score": 1.0,
+    "std_dev": 0.0,
+    "variance": 0.0,
+    "mean_time_sec": 0.15,
+    "total_cost_usd": 0.0,
+    "run_scores": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "tool": "groq-llm-judge",
+    "dataset": "summarization",
+    "n_runs": 3,
+    "mean_score": 1.0,
+    "std_dev": 0.0,
+    "variance": 0.0,
+    "mean_time_sec": 18.59,
+    "total_cost_usd": 0.001411,
+    "run_scores": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "tool": "deepeval",
+    "dataset": "summarization",
+    "n_runs": 3,
+    "mean_score": 1.0,
+    "std_dev": 0.0,
+    "variance": 0.0,
+    "mean_time_sec": 26.11,
+    "total_cost_usd": 0.0,
+    "run_scores": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "tool": "langfuse",
+    "dataset": "summarization",
+    "n_runs": 3,
+    "mean_score": 0.625,
+    "std_dev": 0.0884,
+    "variance": 0.007812,
+    "mean_time_sec": 3.34,
+    "total_cost_usd": 0.000458,
+    "run_scores": [
+      0.75,
+      0.5625,
+      0.5625
+    ]
+  },
+  {
+    "tool": "spaniq",
+    "dataset": "rag_retrieval",
+    "n_runs": 3,
+    "mean_score": 1.0,
+    "std_dev": 0.0,
+    "variance": 0.0,
+    "mean_time_sec": 0.14,
+    "total_cost_usd": 0.0,
+    "run_scores": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "tool": "groq-llm-judge",
+    "dataset": "rag_retrieval",
+    "n_runs": 3,
+    "mean_score": 1.0,
+    "std_dev": 0.0,
+    "variance": 0.0,
+    "mean_time_sec": 19.48,
+    "total_cost_usd": 0.001063,
+    "run_scores": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "tool": "deepeval",
+    "dataset": "rag_retrieval",
+    "n_runs": 3,
+    "mean_score": 1.0,
+    "std_dev": 0.0,
+    "variance": 0.0,
+    "mean_time_sec": 26.76,
+    "total_cost_usd": 0.0,
+    "run_scores": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "tool": "langfuse",
+    "dataset": "rag_retrieval",
+    "n_runs": 3,
+    "mean_score": 0.5833,
+    "std_dev": 0.0295,
+    "variance": 0.000868,
+    "mean_time_sec": 3.34,
+    "total_cost_usd": 0.000247,
+    "run_scores": [
+      0.625,
+      0.5625,
+      0.5625
+    ]
+  }
+]
