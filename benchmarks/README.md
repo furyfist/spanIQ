@@ -1,9 +1,16 @@
 # spanIQ Determinism Benchmark
 
+> **Being superseded.** This determinism benchmark measures score variance across
+> N identical runs. A live run showed that LLM judges are frequently deterministic
+> too (`temperature=0`), so the "every LLM-as-judge tool shows non-zero spread"
+> framing is not supported. The durable, true facts remain: spanIQ is deterministic
+> **and $0/trace by construction** because it makes no LLM call. The successor is an
+> *accuracy* benchmark (precision / recall / F1 on labeled good-vs-bad outputs) —
+> see `docs/plans/benchmark_v2_accuracy.md`.
+
 Compares spanIQ against competitor evaluators on the same datasets, measuring
-score variance across N identical runs. The headline claim: spanIQ's std dev is
-exactly 0.0000 (deterministic, no LLM judge), while every LLM-as-judge tool
-shows non-zero spread.
+score variance across N identical runs and (for the successor) accuracy at
+catching bad outputs.
 
 For the full methodology — what is and isn't measured, datasets, metric
 formulas, cost model, reproduction steps, and the fairness statement — see

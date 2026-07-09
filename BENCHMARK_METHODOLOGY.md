@@ -1,5 +1,16 @@
 # Benchmark Methodology
 
+> **Status note (being superseded).** This document describes the *determinism*
+> benchmark. A live run has since shown that LLM judges are frequently
+> deterministic too (the Groq judge scored std dev 0.0000 on all three datasets
+> at `temperature=0`), so the "LLM judges produce different scores every run"
+> framing is not supported by the data and is being replaced. The determinism
+> benchmark is retained here as a record, with its Section 8 tables updated to
+> the **actual** committed results rather than `[PENDING]`. The successor is an
+> *accuracy* benchmark (precision / recall / F1 on labeled good-vs-bad outputs);
+> see `docs/plans/benchmark_v2_accuracy.md` for the contract. Read Section 8 and
+> Section 10 together — the numbers stand, the headline does not.
+
 This document describes exactly how the spanIQ determinism benchmark is run, what it measures, what it deliberately does not measure, and how anyone can reproduce the numbers themselves.
 
 ## Why this file exists
@@ -167,51 +178,75 @@ Notes:
 
 ## 8. Results
 
-The spaniq rows below are from a live run on the configuration in Section 5 (Python 3.12.7, Windows, 5 runs per dataset). The competitor rows require `GROQ_API_KEY`, which was not set at publish time, so they are marked `[PENDING]` and will be filled in from a live judge run.
+The rows below are the **actual committed results** from a live run on the
+configuration in Section 5 (Python 3.12.7, Windows), source
+`benchmarks/results/results.csv`. The run used **3 runs per tool per dataset**
+(not the 5 stated as the default in Section 5 — noted here so the doc matches the
+artifact). `GROQ_API_KEY` was set for this run, so the competitor rows are real,
+not `[PENDING]`. The `ragas` runner did not appear in the output (skipped — its
+live v0.4 + Groq `llm_factory` path remains unverified; see Section 10).
 
-### Table 1 — Score variance (the proof)
+### Table 1 — Score variance (and why the headline does not hold)
 
 | Tool | Dataset | Mean Score | Std Dev | Runs |
 |---|---|---|---|---|
-| spaniq | qa_factual | 0.5890 | **0.0000** | 5 |
-| spaniq | summarization | 1.0000 | **0.0000** | 5 |
-| spaniq | rag_retrieval | 1.0000 | **0.0000** | 5 |
-| groq | qa_factual | [PENDING] | [PENDING] | 5 |
-| deepeval | qa_factual | [PENDING] | [PENDING] | 5 |
-| ragas | rag_retrieval | [PENDING] | [PENDING] | 5 |
-| langfuse | qa_factual | [PENDING] | [PENDING] | 5 |
+| spaniq | qa_factual | 0.5890 | **0.0000** | 3 |
+| spaniq | summarization | 1.0000 | **0.0000** | 3 |
+| spaniq | rag_retrieval | 1.0000 | **0.0000** | 3 |
+| groq-llm-judge | qa_factual | 1.0000 | **0.0000** | 3 |
+| groq-llm-judge | summarization | 1.0000 | **0.0000** | 3 |
+| groq-llm-judge | rag_retrieval | 1.0000 | **0.0000** | 3 |
+| deepeval | qa_factual | 0.6533 | 0.0309 | 3 |
+| deepeval | summarization | 1.0000 | **0.0000** | 3 |
+| deepeval | rag_retrieval | 1.0000 | **0.0000** | 3 |
+| langfuse | qa_factual | 0.5583 | 0.0312 | 3 |
+| langfuse | summarization | 0.6250 | 0.0884 | 3 |
+| langfuse | rag_retrieval | 0.5833 | 0.0295 | 3 |
 
-spanIQ's std dev is `0.0000` on every dataset across 5 runs: identical scores on identical inputs. The pending rows are expected to show non-zero std dev, since the judge model samples non-deterministically even at `temperature=0.0`.
+spanIQ's std dev is `0.0000` everywhere — that part holds. But so is
+`groq-llm-judge`'s, on all three datasets, and `deepeval`'s on two of three. At
+`temperature=0` with a tight prompt, an LLM judge is often deterministic. Only
+`langfuse` (and `deepeval` on qa_factual) shows the non-zero spread the original
+claim assumed for *all* judges. **The correct reading is not "spanIQ is
+deterministic and judges are not" but "spanIQ is deterministic *and free by
+construction*; judges are deterministic only conditionally and cost money."** The
+determinism-of-spaniq fact is real; the determinism-*comparison* framing is what
+the successor accuracy benchmark replaces.
 
 ### Table 2 — Cost comparison
 
-Benchmark cost is the money actually spent (Groq free tier: $0.00 for all). Estimated production cost applies the flat $0.27/1M token rate from Section 6 to the tokens each tool consumes, scaled to 100 traces.
+Benchmark cost is the money actually spent (Groq free tier: $0.00 for all). The
+estimated production cost is the token-based estimate the runners recorded during
+this run, at the flat $0.27/1M rate from Section 6.
 
-| Tool | Benchmark Cost (Groq) | Est. Production Cost / 100 traces |
+| Tool | Benchmark Cost (Groq) | Est. Production Cost (this run, all datasets) |
 |---|---|---|
-| spaniq | $0.00 | $0.00 (no LLM calls) |
-| groq | $0.00 | [PENDING] |
-| deepeval | $0.00 | [PENDING] |
-| ragas | $0.00 | [PENDING] |
-| langfuse | $0.00 | [PENDING] |
+| spaniq | $0.00 | $0.0000 (no LLM calls) |
+| groq-llm-judge | $0.00 | $0.0044 |
+| deepeval | $0.00 | $0.0000 (usage not surfaced by this path) |
+| langfuse | $0.00 | $0.0011 |
 
-spanIQ's production cost is structurally $0.00: it never calls an LLM, so there are no tokens to bill. The pending estimates come straight from the token counts the runners record during a live judge run.
+spanIQ's production cost is structurally $0.00: it never calls an LLM, so there
+are no tokens to bill. This is the durable, defensible advantage — independent of
+the variance framing.
 
 ### Table 3 — Execution time
 
-Mean wall-clock per full-dataset run, from the same live spaniq run. Per-trace is mean time divided by the dataset's item count (qa_factual = 20, summarization = 8, rag_retrieval = 8).
+Mean wall-clock per full-dataset run, from the same live run.
 
-| Tool | Dataset | Mean Time | Per-trace |
-|---|---|---|---|
-| spaniq | qa_factual | 3.23s | 0.162s |
-| spaniq | summarization | 0.12s | 0.015s |
-| spaniq | rag_retrieval | 0.11s | 0.014s |
-| groq | qa_factual | [PENDING] | [PENDING] |
-| deepeval | qa_factual | [PENDING] | [PENDING] |
-| ragas | rag_retrieval | [PENDING] | [PENDING] |
-| langfuse | qa_factual | [PENDING] | [PENDING] |
+| Tool | Dataset | Mean Time |
+|---|---|---|
+| spaniq | qa_factual | 8.80s |
+| spaniq | summarization | 0.15s |
+| spaniq | rag_retrieval | 0.14s |
+| groq-llm-judge | qa_factual | 26.65s |
+| deepeval | qa_factual | 61.61s |
+| langfuse | qa_factual | 3.94s |
 
-The first spaniq dataset carries the one-time cost of loading the embedding model, which is why qa_factual is slower than the two datasets evaluated after it in the same process. The LLM-judge rows are network-bound and will be dominated by per-item API latency.
+The first spaniq dataset carries the one-time cost of loading the embedding
+model, which is why qa_factual is slower than the two datasets evaluated after it
+in the same process. The LLM-judge rows are network-bound and dominated by
+per-item API latency.
 
 ## 9. Raw run logs
 
@@ -250,6 +285,7 @@ This is what separates an honest benchmark from a vendor benchmark.
 | Date | Change |
 |---|---|
 | 2026-06-25 | Initial benchmark: 5 tools, 20/8/8-item datasets, Groq `llama-3.3-70b-versatile` judge. spaniq rows live; competitor rows pending a keyed run. |
+| 2026-07-10 | Reconciled §8 with the actual committed 3-run results. The live run showed the Groq judge (and deepeval on 2/3 datasets) are also deterministic, so the "judges produce different scores every run" headline is not supported. Determinism benchmark marked as being superseded by an accuracy benchmark; the falsified tweet card was removed from the repo. |
 
 This methodology document is versioned alongside the code. If the benchmark changes — new tools, new datasets, a new judge model — this document is updated in the same commit.
 
