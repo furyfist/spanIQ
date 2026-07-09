@@ -15,6 +15,60 @@ class RunResult:
 
 
 @dataclass
+class Prediction:
+    """One scored item: its ground-truth label and the tool's raw 0-1 score.
+
+    `score` is "how good the output looks" (high = good). The decision into a
+    predicted label is applied later with a calibrated threshold, so the runner
+    stores the raw score and never bakes in a cutoff.
+    """
+    item_id: int
+    true_label: str          # "good" | "bad"
+    score: float             # 0-1, higher = looks more correct
+    failure_kind: str | None = None
+
+
+@dataclass
+class LabeledResult:
+    """Accuracy-oriented result: predictions per run, plus determinism as a
+    secondary stat. One entry in `runs` per identical repeat of the eval."""
+    tool: str
+    dataset: str
+    runs: list[list[Prediction]] = field(default_factory=list)
+
+    def scores_of_run(self, i: int) -> list[float]:
+        return [p.score for p in self.runs[i]]
+
+    @property
+    def true_labels(self) -> list[str]:
+        return [p.true_label for p in self.runs[0]] if self.runs else []
+
+    @property
+    def mean_scores(self) -> list[float]:
+        """Per-item score averaged across runs (used for accuracy metrics)."""
+        if not self.runs:
+            return []
+        n = len(self.runs[0])
+        return [
+            sum(run[i].score for run in self.runs) / len(self.runs)
+            for i in range(n)
+        ]
+
+    @property
+    def score_variance(self) -> float:
+        """Determinism sidebar: variance of per-run mean scores."""
+        if len(self.runs) < 2:
+            return 0.0
+        run_means = [sum(p.score for p in run) / len(run) for run in self.runs if run]
+        mean = sum(run_means) / len(run_means)
+        return sum((x - mean) ** 2 for x in run_means) / len(run_means)
+
+    @property
+    def score_std(self) -> float:
+        return self.score_variance ** 0.5
+
+
+@dataclass
 class BenchmarkResult:
     tool: str
     dataset: str
