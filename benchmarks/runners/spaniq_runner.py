@@ -141,3 +141,45 @@ def run_spaniq_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benchm
         result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=0.0))
 
     return result
+
+
+def run_spaniq_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5) -> "LabeledResult":
+    """Score a labeled dataset with spanIQ and return per-item predictions.
+
+    Uses the same deterministic embedding cosine metric, but reads each row's
+    ground-truth `label` and emits a `Prediction` carrying the raw 0-1 score.
+    The threshold that turns scores into decisions is chosen later (Phase 7),
+    so nothing about accuracy is baked in here. Cost stays $0.00 — no LLM call.
+    """
+    from spaniq.core.test_case import LLMTestCase
+    from spaniq.core.evaluate import evaluate
+    from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
+
+    path = pathlib.Path(dataset_path)
+    rows = _load_dataset(path)
+    metrics = [SemanticSimilarityMetric()]
+    result = LabeledResult(tool="spaniq", dataset=path.stem)
+
+    test_cases = [
+        LLMTestCase(
+            input=row["input"],
+            actual_output=row["output"],
+            expected_output=row.get("reference_output", row["output"]),
+        )
+        for row in rows
+    ]
+
+    for _ in range(n_runs):
+        eval_result = evaluate(test_cases, metrics, verbose=False)
+        preds: list[Prediction] = []
+        for i, tc_result in enumerate(eval_result.test_case_results):
+            score = tc_result.metric_results[0].score
+            preds.append(Prediction(
+                item_id=i,
+                true_label=rows[i].get("label", "good"),
+                score=score,
+                failure_kind=rows[i].get("failure_kind"),
+            ))
+        result.runs.append(preds)
+
+    return result
