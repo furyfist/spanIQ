@@ -15,7 +15,31 @@ import pathlib
 import sys
 
 from benchmarks.config import DATASET_FILES, RESULTS_DIR
-from benchmarks.runners.spaniq_runner import BenchmarkResult
+from benchmarks.runners.spaniq_runner import BenchmarkResult, LabeledResult
+
+
+def _run_tool_accuracy(tool: str, dataset_name: str, dataset_path: pathlib.Path,
+                       runs: int) -> LabeledResult | None:
+    """Accuracy path: dispatch to each runner's prediction function."""
+    print(f"  [{tool}] dataset={dataset_name} runs={runs} (accuracy)")
+    dispatch = {
+        "spaniq":   ("benchmarks.runners.spaniq_runner", "run_spaniq_predictions", ()),
+        "groq":     ("benchmarks.runners.groq_runner", "run_groq_predictions", (ImportError, EnvironmentError)),
+        "deepeval": ("benchmarks.runners.deepeval_runner", "run_deepeval_predictions", (ImportError, EnvironmentError)),
+        "ragas":    ("benchmarks.runners.ragas_runner", "run_ragas_predictions", (ImportError, EnvironmentError, ValueError)),
+        "langfuse": ("benchmarks.runners.langfuse_runner", "run_langfuse_predictions", (ImportError, EnvironmentError)),
+    }
+    if tool not in dispatch:
+        print(f"    unknown tool: {tool}", file=sys.stderr)
+        return None
+    module_name, func_name, skip_excs = dispatch[tool]
+    import importlib
+    try:
+        func = getattr(importlib.import_module(module_name), func_name)
+        return func(dataset_path, n_runs=runs)
+    except skip_excs as exc:
+        print(f"    skipping {tool}: {exc}", file=sys.stderr)
+        return None
 
 
 def _run_tool(tool: str, dataset_name: str, dataset_path: pathlib.Path,
@@ -63,6 +87,7 @@ def main(
     runs: int = 5,
     setup_only: bool = False,
     output_dir: str | pathlib.Path | None = None,
+    metric: str = "accuracy",
 ) -> None:
     if setup_only:
         from benchmarks.datasets.fetch import main as fetch_main
@@ -79,9 +104,48 @@ def main(
     else:
         dataset_names = datasets
 
-    results: list[BenchmarkResult] = []
-    print(f"\nRunning benchmark: tools={tools} datasets={dataset_names} runs={runs}\n")
+    print(f"\nRunning benchmark: tools={tools} datasets={dataset_names} "
+          f"runs={runs} metric={metric}\n")
 
+    if metric == "accuracy":
+        _run_accuracy(tools, dataset_names, runs, output_dir)
+    else:
+        _run_variance(tools, dataset_names, runs, output_dir)
+
+
+def _run_accuracy(tools, dataset_names, runs, output_dir) -> None:
+    results: list[LabeledResult] = []
+    for dataset_name in dataset_names:
+        path = DATASET_FILES.get(dataset_name)
+        if path is None or not path.exists():
+            print(f"  dataset not found: {dataset_name} — run: spaniq benchmark --setup")
+            continue
+        for tool in tools:
+            r = _run_tool_accuracy(tool, dataset_name, path, runs)
+            if r:
+                results.append(r)
+
+    if not results:
+        print("No results to report.")
+        return
+
+    from benchmarks.analysis.report_accuracy import (
+        build_reports, print_table, save_accuracy_csv, save_predictions_csv, save_summary_md,
+    )
+    reports = build_reports(results)
+    print_table(reports)
+    acc_path = save_accuracy_csv(reports, output_dir)
+    pred_path = save_predictions_csv(results, output_dir)
+    md_path = save_summary_md(reports, output_dir)
+
+    print(f"\nResults saved:")
+    print(f"  Accuracy CSV:  {acc_path}")
+    print(f"  Predictions:   {pred_path}")
+    print(f"  Summary:       {md_path}")
+
+
+def _run_variance(tools, dataset_names, runs, output_dir) -> None:
+    results: list[BenchmarkResult] = []
     for dataset_name in dataset_names:
         path = DATASET_FILES.get(dataset_name)
         if path is None or not path.exists():
@@ -120,6 +184,8 @@ if __name__ == "__main__":
     parser.add_argument("--runs", type=int, default=5)
     parser.add_argument("--setup", action="store_true")
     parser.add_argument("--output", default=str(RESULTS_DIR))
+    parser.add_argument("--metric", default="accuracy", choices=["accuracy", "variance"],
+                        help="accuracy (precision/recall/F1, default) or legacy variance")
     args = parser.parse_args()
     main(
         tools=[t.strip() for t in args.tool.split(",")],
@@ -127,4 +193,5 @@ if __name__ == "__main__":
         runs=args.runs,
         setup_only=args.setup,
         output_dir=args.output,
+        metric=args.metric,
     )

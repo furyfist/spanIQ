@@ -361,6 +361,7 @@ def _benchmark_run(args: argparse.Namespace) -> None:
         runs=args.runs,
         setup_only=args.setup,
         output_dir=args.output,
+        metric=args.metric,
     )
 
 
@@ -514,12 +515,14 @@ def _build_parser() -> argparse.ArgumentParser:
     dash_p.add_argument("--port", type=int, default=8501, help="Streamlit port")
 
     # ── benchmark ─────────────────────────────────────────────────────────────
-    bench_p = sub.add_parser("benchmark", help="run the determinism benchmark suite")
+    bench_p = sub.add_parser("benchmark", help="run the accuracy/determinism benchmark suite")
     bench_p.add_argument("--tool", default="spaniq",
                          help="comma-separated tools to benchmark: spaniq,deepeval,ragas,groq,langfuse")
     bench_p.add_argument("--dataset", default="all",
                          help="dataset to use: qa_factual, summarization, rag_retrieval, all")
     bench_p.add_argument("--runs", type=int, default=5, help="number of identical runs per tool")
+    bench_p.add_argument("--metric", default="accuracy", choices=["accuracy", "variance"],
+                         help="accuracy (precision/recall/F1, default) or legacy variance")
     bench_p.add_argument("--setup", action="store_true",
                          help="download and cache benchmark datasets, then exit")
     bench_p.add_argument("--output", default="benchmarks/results",
