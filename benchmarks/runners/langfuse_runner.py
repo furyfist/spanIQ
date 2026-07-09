@@ -15,7 +15,9 @@ import pathlib
 import time
 
 from benchmarks.runners._cost import token_cost
-from benchmarks.runners.spaniq_runner import BenchmarkResult, RunResult, _load_dataset
+from benchmarks.runners.spaniq_runner import (
+    BenchmarkResult, LabeledResult, RunResult, _load_dataset, predictions_from_scores,
+)
 
 
 # Mirrors a standard Langfuse LLM-as-a-Judge correctness template: structured
@@ -119,5 +121,23 @@ def run_langfuse_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benc
         cost = sum(token_cost(pt, ct) for _, pt, ct in judged)
         result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=cost))
         print(f"    langfuse run {run_idx + 1}/{n_runs}: mean={sum(scores)/len(scores):.3f} t={elapsed:.1f}s")
+
+    return result
+
+
+def run_langfuse_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5) -> LabeledResult:
+    """Langfuse-style LLM-as-judge on a labeled dataset, returning predictions."""
+    _check_deps()
+    import asyncio
+
+    path = pathlib.Path(dataset_path)
+    rows = _load_dataset(path)
+    client, model = _get_client()
+    result = LabeledResult(tool="langfuse", dataset=path.stem)
+
+    for _ in range(n_runs):
+        judged = asyncio.run(_judge_batch(client, model, rows))
+        scores = [s for s, _, _ in judged]
+        result.runs.append(predictions_from_scores(rows, scores))
 
     return result

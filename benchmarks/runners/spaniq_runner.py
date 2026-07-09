@@ -100,6 +100,23 @@ class BenchmarkResult:
         return sum(r.cost_usd for r in self.runs)
 
 
+def predictions_from_scores(rows: list[dict], scores: list[float]) -> list["Prediction"]:
+    """Attach ground-truth labels to a run's per-item scores.
+
+    Shared by every runner so the good/bad label always comes from the dataset,
+    never from the tool — the comparison is fair by construction.
+    """
+    return [
+        Prediction(
+            item_id=i,
+            true_label=row.get("label", "good"),
+            score=score,
+            failure_kind=row.get("failure_kind"),
+        )
+        for i, (row, score) in enumerate(zip(rows, scores))
+    ]
+
+
 def _load_dataset(path: pathlib.Path) -> list[dict]:
     rows = []
     with open(path, encoding="utf-8") as fh:

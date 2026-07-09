@@ -10,7 +10,9 @@ import os
 import pathlib
 import time
 
-from benchmarks.runners.spaniq_runner import BenchmarkResult, RunResult, _load_dataset
+from benchmarks.runners.spaniq_runner import (
+    BenchmarkResult, LabeledResult, RunResult, _load_dataset, predictions_from_scores,
+)
 
 
 _JUDGE_PROMPT = """\
@@ -74,5 +76,52 @@ def run_groq_eval(dataset_path: str | pathlib.Path, n_runs: int = 5,
         elapsed = time.perf_counter() - start
         result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=cost))
         print(f"    groq run {run_idx + 1}/{n_runs}: mean={sum(scores)/len(scores):.3f} t={elapsed:.1f}s")
+
+    return result
+
+
+def _score_row(client, model, row) -> float:
+    """Judge one row, returning a 0-1 correctness score (0.5 on error)."""
+    prompt = _JUDGE_PROMPT.format(
+        question=row["input"],
+        reference=row.get("reference_output", ""),
+        output=row["output"],
+    )
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": prompt}],
+            max_tokens=5,
+            temperature=0.0,
+        )
+        raw = resp.choices[0].message.content.strip()
+        return max(0.0, min(1.0, float(raw.split()[0]) / 10.0))
+    except Exception:
+        return 0.5
+
+
+def run_groq_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5,
+                         model: str = "llama-3.3-70b-versatile") -> LabeledResult:
+    """Groq LLM-as-judge on a labeled dataset, returning per-item predictions."""
+    try:
+        from groq import Groq
+    except ImportError:
+        raise ImportError("groq SDK not installed — run: pip install spaniq[groq]")
+
+    api_key = os.environ.get("GROQ_API_KEY")
+    if not api_key:
+        raise EnvironmentError("GROQ_API_KEY not set in environment")
+
+    client = Groq(api_key=api_key)
+    path = pathlib.Path(dataset_path)
+    rows = _load_dataset(path)
+    result = LabeledResult(tool="groq-llm-judge", dataset=path.stem)
+
+    for _ in range(n_runs):
+        scores = []
+        for row in rows:
+            scores.append(_score_row(client, model, row))
+            time.sleep(0.05)
+        result.runs.append(predictions_from_scores(rows, scores))
 
     return result

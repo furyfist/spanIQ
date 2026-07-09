@@ -13,7 +13,9 @@ import pathlib
 import time
 
 from benchmarks.runners._cost import token_cost
-from benchmarks.runners.spaniq_runner import BenchmarkResult, RunResult, _load_dataset
+from benchmarks.runners.spaniq_runner import (
+    BenchmarkResult, LabeledResult, RunResult, _load_dataset, predictions_from_scores,
+)
 
 
 def _est_tokens(text: str) -> int:
@@ -123,5 +125,45 @@ def run_ragas_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benchma
 
         result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=run_cost))
         print(f"    ragas run {run_idx + 1}/{n_runs}: mean={sum(scores)/len(scores):.3f} t={elapsed:.1f}s")
+
+    return result
+
+
+def run_ragas_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5) -> LabeledResult:
+    """ragas faithfulness on a labeled RAG dataset, returning per-item predictions.
+
+    Faithfulness needs retrieved context, so this only accepts a dataset with a
+    `context` field (rag_retrieval). Higher faithfulness = looks more correct,
+    matching the good=high-score convention.
+    """
+    _check_deps()
+    import asyncio
+
+    from ragas.metrics.collections import Faithfulness
+
+    path = pathlib.Path(dataset_path)
+    rows = _load_dataset(path)
+    if not any(r.get("context") for r in rows):
+        raise ValueError(
+            f"ragas faithfulness needs retrieved context; {path.name} has none — "
+            "use the rag_retrieval dataset"
+        )
+    samples = _to_samples(rows)
+    llm = _get_ragas_llm()
+    result = LabeledResult(tool="ragas", dataset=path.stem)
+
+    async def _score_all(scorer) -> list[float]:
+        out = []
+        for sample in samples:
+            try:
+                out.append(float(await scorer.single_turn_ascore(sample)))
+            except Exception:
+                out.append(0.5)
+        return out
+
+    for _ in range(n_runs):
+        scorer = Faithfulness(llm=llm)
+        scores = asyncio.run(_score_all(scorer))
+        result.runs.append(predictions_from_scores(rows, scores))
 
     return result
