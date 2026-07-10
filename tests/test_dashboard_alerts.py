@@ -1,7 +1,9 @@
 """Tests for dashboard alert log data logic (Step 13)."""
+
 from __future__ import annotations
 
 import io
+
 import pytest
 
 from spaniq.monitor.timeline_store import TimelineStore
@@ -13,7 +15,7 @@ def alerts_db(tmp_path):
     store = TimelineStore(db)
     for i in range(5):
         store.record_alert(
-            timestamp=f"2024-01-0{i+1}T12:00:00",
+            timestamp=f"2024-01-0{i + 1}T12:00:00",
             metric_name="ResponseDriftMetric",
             score=0.3 + i * 0.05,
             threshold=0.2,
@@ -45,6 +47,7 @@ def test_empty_alert_log_returns_zero(tmp_path):
 
 def test_csv_export_valid(alerts_db):
     import pandas as pd
+
     _, store = alerts_db
     alerts = store.query_alerts()
     df = pd.DataFrame(alerts)

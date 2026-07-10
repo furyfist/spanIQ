@@ -3,6 +3,7 @@
 Launch via:  spaniq dashboard  [--db spaniq.db] [--port 8501]
 Or directly: streamlit run src/spaniq/dashboard/app.py -- --db spaniq.db
 """
+
 from __future__ import annotations
 
 import argparse
@@ -64,13 +65,17 @@ st.sidebar.caption(f"DB: `{config.db_path}`")
 
 if page == "Overview":
     from spaniq.dashboard.pages.overview import render
+
     render(config)
 elif page == "Drift Timeline":
     from spaniq.dashboard.pages.drift_timeline import render
+
     render(config)
 elif page == "Attribution":
     from spaniq.dashboard.pages.attribution import render
+
     render(config)
 elif page == "Alert Log":
     from spaniq.dashboard.pages.alert_log import render
+
     render(config)

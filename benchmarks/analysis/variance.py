@@ -1,4 +1,5 @@
 """Compute score variance across N identical benchmark runs."""
+
 from __future__ import annotations
 
 from benchmarks.runners.spaniq_runner import BenchmarkResult

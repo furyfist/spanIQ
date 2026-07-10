@@ -1,16 +1,24 @@
 """Tests for OTel GenAI semantic convention → spanIQ mapping (Step 4)."""
+
 from __future__ import annotations
 
 import pytest
 
 from spaniq.attribution.component import ComponentKind
-from spaniq.monitor.collectors.otel import SpanConverter, OPERATION_TO_KIND
+from spaniq.monitor.collectors.otel import SpanConverter
 
 
-def _make_span(operation: str, model: str = "gpt-4", system: str = "openai",
-               prompt: str = "hello", completion: str = "world",
-               start_ns: int = 1_000_000_000, end_ns: int = 2_000_000_000,
-               parent_id: str | None = None, status_code: str = "") -> dict:
+def _make_span(
+    operation: str,
+    model: str = "gpt-4",
+    system: str = "openai",
+    prompt: str = "hello",
+    completion: str = "world",
+    start_ns: int = 1_000_000_000,
+    end_ns: int = 2_000_000_000,
+    parent_id: str | None = None,
+    status_code: str = "",
+) -> dict:
     span = {
         "traceId": "abc123",
         "spanId": "span001",
@@ -74,7 +82,8 @@ class TestSpanConverterGenAI:
 
     def test_missing_prompt_graceful_fallback(self):
         span = {
-            "traceId": "t1", "spanId": "s1",
+            "traceId": "t1",
+            "spanId": "s1",
             "attributes": [
                 {"key": "gen_ai.operation.name", "value": {"stringValue": "chat"}},
                 {"key": "gen_ai.system", "value": {"stringValue": "openai"}},

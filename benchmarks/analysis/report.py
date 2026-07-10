@@ -1,10 +1,10 @@
 """Generate comparison tables and charts from benchmark results."""
+
 from __future__ import annotations
 
 import csv
 import json
 import pathlib
-from dataclasses import asdict
 
 from benchmarks.runners.spaniq_runner import BenchmarkResult
 
@@ -26,8 +26,9 @@ def _row(r: BenchmarkResult) -> dict:
 
 def print_table(results: list[BenchmarkResult]) -> None:
     try:
-        from rich.table import Table
         from rich.console import Console
+        from rich.table import Table
+
         table = Table(title="spanIQ Determinism Benchmark")
         cols = ["Tool", "Dataset", "Runs", "Mean", "Std Dev", "Variance", "Time (s)", "Cost ($)"]
         for c in cols:
@@ -35,16 +36,22 @@ def print_table(results: list[BenchmarkResult]) -> None:
         for r in results:
             row = _row(r)
             table.add_row(
-                row["tool"], row["dataset"],
-                str(row["n_runs"]), str(row["mean_score"]),
-                str(row["std_dev"]), str(row["variance"]),
-                str(row["mean_time_sec"]), f"${row['total_cost_usd']:.4f}",
+                row["tool"],
+                row["dataset"],
+                str(row["n_runs"]),
+                str(row["mean_score"]),
+                str(row["std_dev"]),
+                str(row["variance"]),
+                str(row["mean_time_sec"]),
+                f"${row['total_cost_usd']:.4f}",
             )
         Console().print(table)
     except ImportError:
         for r in results:
             row = _row(r)
-            print(f"{row['tool']:20s} mean={row['mean_score']} std={row['std_dev']} cost=${row['total_cost_usd']:.4f}")
+            print(
+                f"{row['tool']:20s} mean={row['mean_score']} std={row['std_dev']} cost=${row['total_cost_usd']:.4f}"
+            )
 
 
 def save_csv(results: list[BenchmarkResult], output_dir: str | pathlib.Path) -> pathlib.Path:
@@ -71,7 +78,9 @@ def save_json(results: list[BenchmarkResult], output_dir: str | pathlib.Path) ->
     return path
 
 
-def save_chart(results: list[BenchmarkResult], output_dir: str | pathlib.Path) -> pathlib.Path | None:
+def save_chart(
+    results: list[BenchmarkResult], output_dir: str | pathlib.Path
+) -> pathlib.Path | None:
     try:
         import plotly.graph_objects as go
     except ImportError:
@@ -83,12 +92,14 @@ def save_chart(results: list[BenchmarkResult], output_dir: str | pathlib.Path) -
     fig = go.Figure()
     for r in results:
         run_means = [sum(run.scores) / len(run.scores) for run in r.runs if run.scores]
-        fig.add_trace(go.Scatter(
-            x=list(range(1, len(run_means) + 1)),
-            y=run_means,
-            mode="lines+markers",
-            name=r.tool,
-        ))
+        fig.add_trace(
+            go.Scatter(
+                x=list(range(1, len(run_means) + 1)),
+                y=run_means,
+                mode="lines+markers",
+                name=r.tool,
+            )
+        )
 
     fig.update_layout(
         title="Score variance across identical runs (lower spread = more deterministic)",

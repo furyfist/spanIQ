@@ -1,14 +1,13 @@
 """Tests for benchmark runner (Step 17) and analysis module (Step 19)."""
+
 from __future__ import annotations
 
-import pathlib
 import tempfile
 
 import pytest
 
 from benchmarks.config import DATASET_FILES
-from benchmarks.runners.spaniq_runner import run_spaniq_eval, BenchmarkResult
-
+from benchmarks.runners.spaniq_runner import BenchmarkResult, run_spaniq_eval
 
 QA_PATH = DATASET_FILES["qa_factual"]
 
@@ -34,6 +33,7 @@ def test_spaniq_cost_is_zero():
 
 def test_report_csv_saves_correctly():
     from benchmarks.analysis.report import save_csv
+
     result = run_spaniq_eval(QA_PATH, n_runs=2)
     with tempfile.TemporaryDirectory() as tmp:
         path = save_csv([result], tmp)
@@ -73,6 +73,7 @@ def test_langfuse_parse_score():
 
 def test_report_summary_md_contains_std_dev():
     from benchmarks.analysis.report import save_summary_md
+
     result = run_spaniq_eval(QA_PATH, n_runs=2)
     with tempfile.TemporaryDirectory() as tmp:
         path = save_summary_md([result], tmp)

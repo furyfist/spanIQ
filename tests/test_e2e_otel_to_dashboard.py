@@ -1,15 +1,13 @@
 """E2E test: OTel span → OTelCollector → TraceAssembler → Trace → TimelineStore → dashboard query."""
-from __future__ import annotations
 
-import json
-import tempfile
-import time
-import threading
+from __future__ import annotations
 
 import pytest
 
-from spaniq.monitor.collectors.otel import OTelCollector, SpanConverter, TraceAssembler, _ConvertedSpan
-from spaniq.attribution.component import ComponentKind
+from spaniq.monitor.collectors.otel import (
+    SpanConverter,
+    TraceAssembler,
+)
 from spaniq.monitor.timeline_store import TimelineStore
 
 

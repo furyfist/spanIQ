@@ -94,6 +94,7 @@ class AlertEngine:
     def _append_sqlite(self, alert: Alert) -> None:
         try:
             from spaniq.monitor.timeline_store import TimelineStore
+
             store = TimelineStore(self.db_path)
             store.record_alert(
                 timestamp=alert.timestamp,

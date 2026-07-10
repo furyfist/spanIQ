@@ -1,11 +1,12 @@
 """Drift Timeline page — interactive metric time-series with Plotly."""
+
 from __future__ import annotations
 
 import streamlit as st
 
-from spaniq.dashboard.config import DashboardConfig
 from spaniq.dashboard.components.filters import render_filters
 from spaniq.dashboard.components.metric_chart import build_drift_chart
+from spaniq.dashboard.config import DashboardConfig
 
 
 def render(config: DashboardConfig) -> None:
@@ -15,6 +16,7 @@ def render(config: DashboardConfig) -> None:
 
     try:
         from spaniq.monitor.timeline_store import TimelineStore
+
         store = TimelineStore(config.db_path)
     except Exception as exc:
         st.error(f"Could not open database: {exc}")
@@ -48,12 +50,13 @@ def render(config: DashboardConfig) -> None:
         passed = sum(1 for r in rows if r.passed)
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("Traces", len(rows))
-        c2.metric("Mean score", f"{sum(scores)/len(scores):.4f}")
-        c3.metric("Pass rate", f"{passed/len(rows)*100:.1f}%")
+        c2.metric("Mean score", f"{sum(scores) / len(scores):.4f}")
+        c3.metric("Pass rate", f"{passed / len(rows) * 100:.1f}%")
         c4.metric("Latest", f"{scores[-1]:.4f}")
         st.markdown("---")
 
     if filters.auto_refresh:
         import time
+
         time.sleep(config.refresh_interval)
         st.rerun()

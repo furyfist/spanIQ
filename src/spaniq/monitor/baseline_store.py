@@ -107,9 +107,7 @@ class BaselineStore:
 
     def get(self, baseline_id: str) -> Baseline:
         with self._conn() as conn:
-            row = conn.execute(
-                "SELECT * FROM baselines WHERE id = ?", (baseline_id,)
-            ).fetchone()
+            row = conn.execute("SELECT * FROM baselines WHERE id = ?", (baseline_id,)).fetchone()
         if row is None:
             raise KeyError(f"Baseline not found: {baseline_id}")
         return Baseline(**dict(row))
@@ -166,6 +164,4 @@ class BaselineStore:
                 "SELECT 1 FROM sqlite_master WHERE type='table' AND name='timeline'"
             ).fetchone()
             if has_timeline:
-                conn.execute(
-                    "DELETE FROM timeline WHERE baseline_id = ?", (baseline_id,)
-                )
+                conn.execute("DELETE FROM timeline WHERE baseline_id = ?", (baseline_id,))

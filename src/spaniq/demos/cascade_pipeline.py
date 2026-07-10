@@ -8,9 +8,11 @@ Usage:
     python -m spaniq.demos.cascade_pipeline          # offline fixtures
     python -m spaniq.demos.cascade_pipeline --live   # regenerate via Groq (requires GROQ_API_KEY)
 """
+
 from __future__ import annotations
 
 import argparse
+import contextlib
 import tempfile
 from pathlib import Path
 
@@ -25,10 +27,13 @@ GENERATION_LAG = 7
 
 def run(offline: bool = True) -> None:
     if not offline:
-        console.print("[yellow]--live mode not implemented in this version; using fixtures[/yellow]")
+        console.print(
+            "[yellow]--live mode not implemented in this version; using fixtures[/yellow]"
+        )
 
     if not FIXTURE_PATH.exists():
         from spaniq.demos._gen_cascade_fixtures import generate
+
         generate()
 
     console.rule("[bold]spanIQ V3 — Cascade Attribution Demo[/bold]")
@@ -64,6 +69,7 @@ def run(offline: bool = True) -> None:
         console.print(f"[yellow]online CUSUM alarms:[/yellow] {report.online_alarms}")
 
     from spaniq.monitor.timeline_store import TimelineStore
+
     store = TimelineStore(db_path)
     components = store.components()
 
@@ -95,10 +101,9 @@ def run(offline: bool = True) -> None:
         console.print(f"[dim]chart not saved: {e}[/dim]")
 
     import os
-    try:
+
+    with contextlib.suppress(OSError):
         os.unlink(db_path)
-    except OSError:
-        pass
 
 
 if __name__ == "__main__":

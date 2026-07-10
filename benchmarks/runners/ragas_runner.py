@@ -8,6 +8,7 @@ Requires: ragas>=0.4 and langchain-community<0.4 (ragas.llms.base still imports
 `langchain_community.chat_models.vertexai`, which was removed in 0.4), plus
 GROQ_API_KEY.
 """
+
 from __future__ import annotations
 
 import os
@@ -16,7 +17,11 @@ import time
 
 from benchmarks.runners._cost import token_cost
 from benchmarks.runners.spaniq_runner import (
-    BenchmarkResult, LabeledResult, RunResult, _load_dataset, predictions_from_scores,
+    BenchmarkResult,
+    LabeledResult,
+    RunResult,
+    _load_dataset,
+    predictions_from_scores,
 )
 
 
@@ -35,7 +40,7 @@ def _check_deps() -> None:
             "'ragas>=0.4' with 'langchain-community<0.4'"
         ) from exc
     if not os.environ.get("GROQ_API_KEY"):
-        raise EnvironmentError("GROQ_API_KEY not set")
+        raise OSError("GROQ_API_KEY not set")
 
 
 def _get_ragas_llm():
@@ -45,8 +50,8 @@ def _get_ragas_llm():
     v0.4 factory rejects a non-OpenAI client, falls back to wrapping a LangChain
     ChatOpenAI on the same base_url.
     """
-    from ragas.llms import llm_factory
     from openai import AsyncOpenAI
+    from ragas.llms import llm_factory
 
     api_key = os.environ["GROQ_API_KEY"]
     base_url = "https://api.groq.com/openai/v1"
@@ -110,7 +115,9 @@ def run_ragas_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benchma
         elapsed = time.perf_counter() - start
 
         result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=run_cost))
-        print(f"    ragas run {run_idx + 1}/{n_runs}: mean={sum(scores)/len(scores):.3f} t={elapsed:.1f}s")
+        print(
+            f"    ragas run {run_idx + 1}/{n_runs}: mean={sum(scores) / len(scores):.3f} t={elapsed:.1f}s"
+        )
 
     return result
 

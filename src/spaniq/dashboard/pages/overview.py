@@ -1,10 +1,11 @@
 """Overview page — system health summary."""
+
 from __future__ import annotations
 
 import streamlit as st
 
-from spaniq.dashboard.config import DashboardConfig
 from spaniq.dashboard.components.health_badge import render_health_badge
+from spaniq.dashboard.config import DashboardConfig
 
 METRICS = [
     "ResponseDriftMetric",
@@ -18,6 +19,7 @@ def render(config: DashboardConfig) -> None:
 
     try:
         from spaniq.monitor.timeline_store import TimelineStore
+
         store = TimelineStore(config.db_path)
     except Exception as exc:
         st.error(f"Could not open database `{config.db_path}`: {exc}")
@@ -60,6 +62,7 @@ def render(config: DashboardConfig) -> None:
 
     if config.refresh_interval > 0:
         import time
+
         st.caption(f"Auto-refreshing every {config.refresh_interval}s")
         time.sleep(config.refresh_interval)
         st.rerun()
@@ -67,6 +70,7 @@ def render(config: DashboardConfig) -> None:
 
 def _count_alerts(db_path: str) -> int:
     import sqlite3
+
     try:
         conn = sqlite3.connect(db_path)
         row = conn.execute(
@@ -87,14 +91,16 @@ def _render_ingestion_chart(store) -> None:
         return
 
     timestamps = [r.timestamp[:16] for r in rows]
-    fig = go.Figure(go.Scatter(
-        x=list(range(len(timestamps))),
-        y=[1] * len(timestamps),
-        mode="markers",
-        marker={"color": "#7c3aed", "size": 6},
-        hovertext=timestamps,
-        hoverinfo="text",
-    ))
+    fig = go.Figure(
+        go.Scatter(
+            x=list(range(len(timestamps))),
+            y=[1] * len(timestamps),
+            mode="markers",
+            marker={"color": "#7c3aed", "size": 6},
+            hovertext=timestamps,
+            hoverinfo="text",
+        )
+    )
     fig.update_layout(
         template="plotly_dark",
         height=120,

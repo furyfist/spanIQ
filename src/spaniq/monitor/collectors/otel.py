@@ -1,4 +1,5 @@
 """OTel collector: OTLP/gRPC + HTTP receiver that maps OTel spans to spanIQ Traces."""
+
 from __future__ import annotations
 
 import json
@@ -6,8 +7,8 @@ import logging
 import queue
 import threading
 import time
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Iterator
 
 from spaniq.attribution.component import ComponentKind, ComponentSpan
 from spaniq.monitor.collectors.base import BaseCollector
@@ -70,7 +71,7 @@ class _ConvertedSpan:
     skipped: bool = False
 
     @classmethod
-    def skip(cls) -> "_ConvertedSpan":
+    def skip(cls) -> _ConvertedSpan:
         return cls(
             trace_id="",
             span_id="",
@@ -270,8 +271,9 @@ class TraceAssembler:
 class _OTLPHTTPHandler:
     """Minimal OTLP/HTTP JSON receiver (POST /v1/traces)."""
 
-    def __init__(self, converter: SpanConverter, assembler: TraceAssembler,
-                 out: "queue.Queue[Trace]") -> None:
+    def __init__(
+        self, converter: SpanConverter, assembler: TraceAssembler, out: queue.Queue[Trace]
+    ) -> None:
         self._converter = converter
         self._assembler = assembler
         self._out = out
@@ -360,14 +362,16 @@ class OTelCollector(BaseCollector):
             from concurrent import futures
 
             import grpc
+            from google.protobuf import json_format
             from opentelemetry.proto.collector.trace.v1 import (
                 trace_service_pb2,
                 trace_service_pb2_grpc,
             )
             from opentelemetry.proto.trace.v1 import trace_pb2  # noqa: F401
-            from google.protobuf import json_format
         except ImportError:
-            log.warning("gRPC deps not installed — OTLP/gRPC disabled. Run: pip install spaniq[otel]")
+            log.warning(
+                "gRPC deps not installed — OTLP/gRPC disabled. Run: pip install spaniq[otel]"
+            )
             return
 
         converter = self._converter

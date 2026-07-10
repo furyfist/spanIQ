@@ -3,6 +3,7 @@
 Positive class is "bad": a LOW score means the output looks bad, so
 predict(score, threshold) flags 'bad' when score < threshold.
 """
+
 from __future__ import annotations
 
 import pytest

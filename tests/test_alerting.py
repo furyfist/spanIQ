@@ -74,7 +74,7 @@ def test_counter_resets_on_pass(tmp_path):
     engine = AlertEngine(alert_after=3, alerts_path=str(tmp_path / "alerts.jsonl"))
     _check(engine, passed=False)
     _check(engine, passed=False)
-    _check(engine, passed=True)   # reset
+    _check(engine, passed=True)  # reset
     _check(engine, passed=False)
     _check(engine, passed=False)
     assert len(engine.alerts) == 0  # never reached 3 in a row after reset

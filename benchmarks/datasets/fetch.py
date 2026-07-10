@@ -6,6 +6,7 @@ Writes:
   benchmarks/datasets/summarization.jsonl      (30 rows from CNN/DailyMail)
   benchmarks/datasets/rag_retrieval.jsonl      (30 rows from RAGBench)
 """
+
 from __future__ import annotations
 
 import json
@@ -37,13 +38,15 @@ def fetch_qa_factual(n: int = 50) -> None:
         value = answers.get("value", "")
         if not value:
             continue
-        rows.append({
-            "input": item["question"],
-            "reference_output": value,
-            "output": f"The answer is {value}.",
-            "category": "factual_qa",
-            "source": "trivia_qa",
-        })
+        rows.append(
+            {
+                "input": item["question"],
+                "reference_output": value,
+                "output": f"The answer is {value}.",
+                "category": "factual_qa",
+                "source": "trivia_qa",
+            }
+        )
     _write_jsonl(HERE / "qa_factual.jsonl", rows[:n])
 
 
@@ -63,13 +66,15 @@ def fetch_summarization(n: int = 30) -> None:
         highlights = item.get("highlights", "").strip()
         if not article or not highlights:
             continue
-        rows.append({
-            "input": article[:800],
-            "reference_output": highlights,
-            "output": highlights,
-            "category": "summarization",
-            "source": "cnn_dailymail",
-        })
+        rows.append(
+            {
+                "input": article[:800],
+                "reference_output": highlights,
+                "output": highlights,
+                "category": "summarization",
+                "source": "cnn_dailymail",
+            }
+        )
     _write_jsonl(HERE / "summarization.jsonl", rows[:n])
 
 
@@ -90,16 +95,18 @@ def fetch_rag_retrieval(n: int = 30) -> None:
         for item in ds:
             if len(rows) >= n:
                 break
-            rows.append({
-                "input": item.get("question", ""),
-                "reference_output": item.get("answer", ""),
-                "output": item.get("answer", ""),
-                "context": " ".join(
-                    " ".join(s) for s in item.get("context", {}).get("sentences", [])
-                )[:600],
-                "category": "rag_retrieval",
-                "source": "hotpot_qa",
-            })
+            rows.append(
+                {
+                    "input": item.get("question", ""),
+                    "reference_output": item.get("answer", ""),
+                    "output": item.get("answer", ""),
+                    "context": " ".join(
+                        " ".join(s) for s in item.get("context", {}).get("sentences", [])
+                    )[:600],
+                    "category": "rag_retrieval",
+                    "source": "hotpot_qa",
+                }
+            )
         _write_jsonl(HERE / "rag_retrieval.jsonl", rows[:n])
         return
 
@@ -107,14 +114,16 @@ def fetch_rag_retrieval(n: int = 30) -> None:
     for item in ds:
         if len(rows) >= n:
             break
-        rows.append({
-            "input": item.get("question", ""),
-            "reference_output": item.get("answer", ""),
-            "output": item.get("answer", ""),
-            "context": str(item.get("documents", [""])[:1])[:600],
-            "category": "rag_retrieval",
-            "source": "ragbench",
-        })
+        rows.append(
+            {
+                "input": item.get("question", ""),
+                "reference_output": item.get("answer", ""),
+                "output": item.get("answer", ""),
+                "context": str(item.get("documents", [""])[:1])[:600],
+                "category": "rag_retrieval",
+                "source": "ragbench",
+            }
+        )
     _write_jsonl(HERE / "rag_retrieval.jsonl", rows[:n])
 
 

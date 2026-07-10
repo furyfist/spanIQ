@@ -175,7 +175,9 @@ class TimelineStore:
         metric_name: str,
         last_n: int = 500,
     ) -> list[float]:
-        rows = self.query(metric_name=metric_name, last_n=last_n, component=component, ascending=True)
+        rows = self.query(
+            metric_name=metric_name, last_n=last_n, component=component, ascending=True
+        )
         return [r.score for r in rows]
 
     def components(self) -> list[str]:
@@ -241,8 +243,16 @@ class TimelineStore:
                    severity, message, consecutive_count)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                (timestamp, metric_name, component, score, threshold,
-                 severity, message, consecutive_count),
+                (
+                    timestamp,
+                    metric_name,
+                    component,
+                    score,
+                    threshold,
+                    severity,
+                    message,
+                    consecutive_count,
+                ),
             )
 
     def query_alerts(

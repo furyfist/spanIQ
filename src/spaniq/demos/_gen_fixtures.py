@@ -1,4 +1,5 @@
 """Internal helper to write RAG breakage JSONL fixtures. Run once."""
+
 import json
 from pathlib import Path
 
@@ -8,9 +9,7 @@ PROMPT = "What is the refund policy for orders placed in the last 30 days?"
 with open(FIXTURES / "baselines.json") as f:
     baselines = json.load(f)
 
-with_ctx = [
-    {"input": PROMPT, "output": o} for o in baselines
-]
+with_ctx = [{"input": PROMPT, "output": o} for o in baselines]
 
 no_ctx = [
     {"input": PROMPT, "output": o}

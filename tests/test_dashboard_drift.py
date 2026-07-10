@@ -1,7 +1,6 @@
 """Tests for dashboard drift timeline chart logic (Step 11)."""
-from __future__ import annotations
 
-import pytest
+from __future__ import annotations
 
 from spaniq.dashboard.components.metric_chart import build_drift_chart
 

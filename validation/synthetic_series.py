@@ -1,4 +1,5 @@
 """Generate synthetic score series with known changepoints for validation."""
+
 from __future__ import annotations
 
 import numpy as np
@@ -61,6 +62,10 @@ def make_cascade_scenario(
     seed: int = 0,
 ) -> tuple[np.ndarray, np.ndarray, int, int]:
     """Two-component cascade: root breaks at root_break, follower breaks at root_break+lead_gap."""
-    root_series, _ = make_break_series(n=n, break_at=root_break, sigma=sigma, shift_sigma=shift_sigma, seed=seed)
-    follower_series, _ = make_break_series(n=n, break_at=root_break + lead_gap, sigma=sigma, shift_sigma=shift_sigma, seed=seed + 1)
+    root_series, _ = make_break_series(
+        n=n, break_at=root_break, sigma=sigma, shift_sigma=shift_sigma, seed=seed
+    )
+    follower_series, _ = make_break_series(
+        n=n, break_at=root_break + lead_gap, sigma=sigma, shift_sigma=shift_sigma, seed=seed + 1
+    )
     return root_series, follower_series, root_break, root_break + lead_gap

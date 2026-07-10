@@ -1,11 +1,12 @@
 """Phase 5 — spanIQ runner emits labeled predictions for accuracy scoring."""
+
 from __future__ import annotations
 
 import pytest
 
 from benchmarks.analysis import metrics as m
 from benchmarks.config import DATASET_FILES
-from benchmarks.runners.spaniq_runner import run_spaniq_predictions, LabeledResult, Prediction
+from benchmarks.runners.spaniq_runner import LabeledResult, Prediction, run_spaniq_predictions
 
 QA_PATH = DATASET_FILES["qa_factual"]
 
@@ -39,6 +40,7 @@ def test_spaniq_separates_good_from_bad():
 def test_predictions_from_scores_attaches_dataset_labels():
     """The label always comes from the dataset row, never from the tool."""
     from benchmarks.runners.spaniq_runner import predictions_from_scores
+
     rows = [
         {"label": "bad", "failure_kind": "wrong_entity"},
         {"label": "good", "failure_kind": None},
@@ -71,9 +73,7 @@ def test_ragas_raises_when_every_item_fails(monkeypatch):
             raise RuntimeError("judge unreachable")
 
     monkeypatch.setattr(rr, "_get_ragas_llm", lambda: object())
-    monkeypatch.setattr(
-        "ragas.metrics.collections.Faithfulness", lambda llm: _AlwaysFails()
-    )
+    monkeypatch.setattr("ragas.metrics.collections.Faithfulness", lambda llm: _AlwaysFails())
     with pytest.raises(RuntimeError, match="every call failed"):
         rr.run_ragas_predictions(DATASET_FILES["rag_retrieval"], n_runs=1)
 

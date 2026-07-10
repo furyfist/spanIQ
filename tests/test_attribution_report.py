@@ -1,8 +1,8 @@
 """Tests for AttributionReport (terminal, JSON, PNG)."""
+
 from __future__ import annotations
 
 import json
-import pytest
 
 from spaniq.attribution.attributor import AttributionResult, ComponentBreak
 from spaniq.attribution.report import attribution_to_dict, print_attribution, save_attribution_json

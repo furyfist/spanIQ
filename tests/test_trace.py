@@ -14,15 +14,14 @@ def test_defaults_populated():
 
 def test_trace_id_is_uuid():
     t = Trace(input="a", output="b")
-    uuid_re = re.compile(
-        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-    )
+    uuid_re = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
     assert uuid_re.match(t.trace_id)
 
 
 def test_timestamp_is_utc_iso():
     t = Trace(input="a", output="b")
     from datetime import datetime
+
     dt = datetime.fromisoformat(t.timestamp)
     assert dt.tzinfo is not None
 

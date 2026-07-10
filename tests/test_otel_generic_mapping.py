@@ -1,13 +1,18 @@
 """Tests for generic spaniq.* attribute OTel span mapping (Step 7)."""
+
 from __future__ import annotations
 
 from spaniq.attribution.component import ComponentKind
 from spaniq.monitor.collectors.otel import SpanConverter
 
 
-def _generic_span(inp: str = "in", out: str = "out",
-                  component: str | None = None, kind: str | None = None,
-                  parent_id: str | None = None) -> dict:
+def _generic_span(
+    inp: str = "in",
+    out: str = "out",
+    component: str | None = None,
+    kind: str | None = None,
+    parent_id: str | None = None,
+) -> dict:
     attrs = [
         {"key": "spaniq.input", "value": {"stringValue": inp}},
         {"key": "spaniq.output", "value": {"stringValue": out}},
@@ -16,8 +21,13 @@ def _generic_span(inp: str = "in", out: str = "out",
         attrs.append({"key": "spaniq.component", "value": {"stringValue": component}})
     if kind:
         attrs.append({"key": "spaniq.component_kind", "value": {"stringValue": kind}})
-    span: dict = {"traceId": "t1", "spanId": "s1", "name": "my-span",
-                  "attributes": attrs, "status": {}}
+    span: dict = {
+        "traceId": "t1",
+        "spanId": "s1",
+        "name": "my-span",
+        "attributes": attrs,
+        "status": {},
+    }
     if parent_id:
         span["parentSpanId"] = parent_id
     return span
@@ -52,15 +62,20 @@ class TestSpanConverterGeneric:
         assert result.skipped
 
     def test_span_with_only_input_is_skipped(self):
-        span = {"traceId": "t1", "spanId": "s1",
-                "attributes": [{"key": "spaniq.input", "value": {"stringValue": "hi"}}],
-                "status": {}}
+        span = {
+            "traceId": "t1",
+            "spanId": "s1",
+            "attributes": [{"key": "spaniq.input", "value": {"stringValue": "hi"}}],
+            "status": {},
+        }
         result = self.conv.convert(span)
         assert result.skipped
 
     def test_mixed_trace_genai_spans_take_priority(self):
         span = {
-            "traceId": "t1", "spanId": "s1", "name": "chat",
+            "traceId": "t1",
+            "spanId": "s1",
+            "name": "chat",
             "attributes": [
                 {"key": "gen_ai.operation.name", "value": {"stringValue": "chat"}},
                 {"key": "gen_ai.system", "value": {"stringValue": "openai"}},

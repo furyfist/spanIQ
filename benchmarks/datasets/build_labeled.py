@@ -14,6 +14,7 @@ the benchmark tests whether a tool can tell a real mistake from a real answer.
 Usage:
     python -m benchmarks.datasets.build_labeled
 """
+
 from __future__ import annotations
 
 import json
@@ -27,24 +28,57 @@ HERE = pathlib.Path(__file__).parent
 # but plausible — a confident-sounding incorrect fact, the hard case for a judge.
 QA_BAD = {
     "What is the capital of France?": ("The capital of France is Berlin.", "wrong_entity"),
-    "Who wrote Romeo and Juliet?": ("Romeo and Juliet was written by Charles Dickens.", "wrong_entity"),
-    "What is the chemical symbol for water?": ("The chemical symbol for water is CO2.", "wrong_entity"),
+    "Who wrote Romeo and Juliet?": (
+        "Romeo and Juliet was written by Charles Dickens.",
+        "wrong_entity",
+    ),
+    "What is the chemical symbol for water?": (
+        "The chemical symbol for water is CO2.",
+        "wrong_entity",
+    ),
     "In what year did World War II end?": ("World War II ended in 1918.", "wrong_entity"),
-    "What planet is closest to the Sun?": ("Venus is the planet closest to the Sun.", "wrong_entity"),
+    "What planet is closest to the Sun?": (
+        "Venus is the planet closest to the Sun.",
+        "wrong_entity",
+    ),
     "How many sides does a hexagon have?": ("A hexagon has eight sides.", "wrong_entity"),
-    "What is the speed of light in a vacuum?": ("The speed of light in a vacuum is about 150,000 kilometres per second.", "wrong_entity"),
+    "What is the speed of light in a vacuum?": (
+        "The speed of light in a vacuum is about 150,000 kilometres per second.",
+        "wrong_entity",
+    ),
     "Who painted the Mona Lisa?": ("The Mona Lisa was painted by Pablo Picasso.", "wrong_entity"),
-    "What is the largest ocean on Earth?": ("The Atlantic Ocean is the largest ocean on Earth.", "wrong_entity"),
-    "What gas do plants absorb during photosynthesis?": ("Plants absorb oxygen during photosynthesis.", "contradiction"),
-    "What is the boiling point of water at sea level in Celsius?": ("Water boils at 50 degrees Celsius at sea level.", "wrong_entity"),
-    "How many bones are in the adult human body?": ("The adult human body has 312 bones.", "wrong_entity"),
-    "What is the longest river in the world?": ("The Thames is the longest river in the world.", "wrong_entity"),
+    "What is the largest ocean on Earth?": (
+        "The Atlantic Ocean is the largest ocean on Earth.",
+        "wrong_entity",
+    ),
+    "What gas do plants absorb during photosynthesis?": (
+        "Plants absorb oxygen during photosynthesis.",
+        "contradiction",
+    ),
+    "What is the boiling point of water at sea level in Celsius?": (
+        "Water boils at 50 degrees Celsius at sea level.",
+        "wrong_entity",
+    ),
+    "How many bones are in the adult human body?": (
+        "The adult human body has 312 bones.",
+        "wrong_entity",
+    ),
+    "What is the longest river in the world?": (
+        "The Thames is the longest river in the world.",
+        "wrong_entity",
+    ),
     "What element has the atomic number 1?": ("Helium has the atomic number 1.", "wrong_entity"),
-    "In which country is the Great Wall located?": ("The Great Wall is located in Japan.", "wrong_entity"),
+    "In which country is the Great Wall located?": (
+        "The Great Wall is located in Japan.",
+        "wrong_entity",
+    ),
     "What is the smallest prime number?": ("The smallest prime number is 1.", "wrong_entity"),
     "Who invented the telephone?": ("The telephone was invented by Thomas Edison.", "wrong_entity"),
     "What is the currency of Japan?": ("The currency of Japan is the Won.", "wrong_entity"),
-    "How many continents are there on Earth?": ("There are five continents on Earth.", "wrong_entity"),
+    "How many continents are there on Earth?": (
+        "There are five continents on Earth.",
+        "wrong_entity",
+    ),
     "What is the square root of 144?": ("The square root of 144 is 14.", "wrong_entity"),
 }
 
@@ -52,36 +86,216 @@ QA_BAD = {
 # one good + one bad, so this list plus the 20 seed rows gives 40 questions x 2.
 QA_EXTRA = [
     # (question, correct_output, reference, bad_output, failure_kind)
-    ("What is the tallest mountain on Earth?", "Mount Everest is the tallest mountain on Earth.", "Mount Everest", "K2 is the tallest mountain on Earth.", "wrong_entity"),
-    ("Who developed the theory of relativity?", "Albert Einstein developed the theory of relativity.", "Albert Einstein", "Isaac Newton developed the theory of relativity.", "wrong_entity"),
-    ("What is the hardest natural substance?", "Diamond is the hardest natural substance.", "Diamond", "Gold is the hardest natural substance.", "wrong_entity"),
-    ("How many players are on a soccer team on the field?", "A soccer team has eleven players on the field.", "Eleven", "A soccer team has nine players on the field.", "wrong_entity"),
-    ("What is the freezing point of water in Celsius?", "Water freezes at 0 degrees Celsius.", "0 degrees Celsius", "Water freezes at 32 degrees Celsius.", "wrong_entity"),
-    ("What is the largest planet in the solar system?", "Jupiter is the largest planet in the solar system.", "Jupiter", "Saturn is the largest planet in the solar system.", "wrong_entity"),
-    ("Who was the first person to walk on the Moon?", "Neil Armstrong was the first person to walk on the Moon.", "Neil Armstrong", "Buzz Aldrin was the first person to walk on the Moon.", "wrong_entity"),
-    ("What language has the most native speakers?", "Mandarin Chinese has the most native speakers.", "Mandarin Chinese", "English has the most native speakers.", "wrong_entity"),
-    ("What is the powerhouse of the cell?", "The mitochondria is the powerhouse of the cell.", "Mitochondria", "The nucleus is the powerhouse of the cell.", "wrong_entity"),
-    ("What is the capital of Japan?", "The capital of Japan is Tokyo.", "Tokyo", "The capital of Japan is Kyoto.", "wrong_entity"),
-    ("How many colours are in a rainbow?", "A rainbow has seven colours.", "Seven", "A rainbow has five colours.", "wrong_entity"),
-    ("What is the primary gas in Earth's atmosphere?", "Nitrogen is the primary gas in Earth's atmosphere.", "Nitrogen", "Oxygen is the primary gas in Earth's atmosphere.", "contradiction"),
-    ("Who painted the ceiling of the Sistine Chapel?", "Michelangelo painted the ceiling of the Sistine Chapel.", "Michelangelo", "Raphael painted the ceiling of the Sistine Chapel.", "wrong_entity"),
-    ("What is the smallest country in the world?", "Vatican City is the smallest country in the world.", "Vatican City", "Monaco is the smallest country in the world.", "wrong_entity"),
-    ("What is the study of living organisms called?", "The study of living organisms is called biology.", "Biology", "The study of living organisms is called geology.", "wrong_entity"),
-    ("How many strings does a standard guitar have?", "A standard guitar has six strings.", "Six", "A standard guitar has four strings.", "wrong_entity"),
-    ("What is the largest mammal on Earth?", "The blue whale is the largest mammal on Earth.", "Blue whale", "The elephant is the largest mammal on Earth.", "wrong_entity"),
-    ("What is the chemical symbol for gold?", "The chemical symbol for gold is Au.", "Au", "The chemical symbol for gold is Ag.", "wrong_entity"),
-    ("In which year did the first man land on the Moon?", "The first Moon landing was in 1969.", "1969", "The first Moon landing was in 1979.", "wrong_entity"),
-    ("What is the national language of Brazil?", "The national language of Brazil is Portuguese.", "Portuguese", "The national language of Brazil is Spanish.", "wrong_entity"),
-    ("What is the capital of Australia?", "The capital of Australia is Canberra.", "Canberra", "The capital of Australia is Sydney.", "wrong_entity"),
-    ("Who discovered penicillin?", "Alexander Fleming discovered penicillin.", "Alexander Fleming", "Louis Pasteur discovered penicillin.", "wrong_entity"),
-    ("What is the largest desert in the world?", "The Antarctic Desert is the largest desert in the world.", "Antarctic Desert", "The Sahara is the largest desert in the world.", "wrong_entity"),
-    ("How many teeth does a typical adult human have?", "A typical adult human has 32 teeth.", "32", "A typical adult human has 28 teeth.", "wrong_entity"),
-    ("What is the fastest land animal?", "The cheetah is the fastest land animal.", "Cheetah", "The lion is the fastest land animal.", "wrong_entity"),
-    ("What is the main ingredient in traditional bread?", "The main ingredient in traditional bread is flour.", "Flour", "The main ingredient in traditional bread is sugar.", "wrong_entity"),
-    ("Who wrote the play Hamlet?", "Hamlet was written by William Shakespeare.", "William Shakespeare", "Hamlet was written by Christopher Marlowe.", "wrong_entity"),
-    ("What is the chemical symbol for sodium?", "The chemical symbol for sodium is Na.", "Na", "The chemical symbol for sodium is So.", "wrong_entity"),
-    ("What is the largest internal organ in the human body?", "The liver is the largest internal organ in the human body.", "Liver", "The heart is the largest internal organ in the human body.", "wrong_entity"),
-    ("In which year did the Titanic sink?", "The Titanic sank in 1912.", "1912", "The Titanic sank in 1920.", "wrong_entity"),
+    (
+        "What is the tallest mountain on Earth?",
+        "Mount Everest is the tallest mountain on Earth.",
+        "Mount Everest",
+        "K2 is the tallest mountain on Earth.",
+        "wrong_entity",
+    ),
+    (
+        "Who developed the theory of relativity?",
+        "Albert Einstein developed the theory of relativity.",
+        "Albert Einstein",
+        "Isaac Newton developed the theory of relativity.",
+        "wrong_entity",
+    ),
+    (
+        "What is the hardest natural substance?",
+        "Diamond is the hardest natural substance.",
+        "Diamond",
+        "Gold is the hardest natural substance.",
+        "wrong_entity",
+    ),
+    (
+        "How many players are on a soccer team on the field?",
+        "A soccer team has eleven players on the field.",
+        "Eleven",
+        "A soccer team has nine players on the field.",
+        "wrong_entity",
+    ),
+    (
+        "What is the freezing point of water in Celsius?",
+        "Water freezes at 0 degrees Celsius.",
+        "0 degrees Celsius",
+        "Water freezes at 32 degrees Celsius.",
+        "wrong_entity",
+    ),
+    (
+        "What is the largest planet in the solar system?",
+        "Jupiter is the largest planet in the solar system.",
+        "Jupiter",
+        "Saturn is the largest planet in the solar system.",
+        "wrong_entity",
+    ),
+    (
+        "Who was the first person to walk on the Moon?",
+        "Neil Armstrong was the first person to walk on the Moon.",
+        "Neil Armstrong",
+        "Buzz Aldrin was the first person to walk on the Moon.",
+        "wrong_entity",
+    ),
+    (
+        "What language has the most native speakers?",
+        "Mandarin Chinese has the most native speakers.",
+        "Mandarin Chinese",
+        "English has the most native speakers.",
+        "wrong_entity",
+    ),
+    (
+        "What is the powerhouse of the cell?",
+        "The mitochondria is the powerhouse of the cell.",
+        "Mitochondria",
+        "The nucleus is the powerhouse of the cell.",
+        "wrong_entity",
+    ),
+    (
+        "What is the capital of Japan?",
+        "The capital of Japan is Tokyo.",
+        "Tokyo",
+        "The capital of Japan is Kyoto.",
+        "wrong_entity",
+    ),
+    (
+        "How many colours are in a rainbow?",
+        "A rainbow has seven colours.",
+        "Seven",
+        "A rainbow has five colours.",
+        "wrong_entity",
+    ),
+    (
+        "What is the primary gas in Earth's atmosphere?",
+        "Nitrogen is the primary gas in Earth's atmosphere.",
+        "Nitrogen",
+        "Oxygen is the primary gas in Earth's atmosphere.",
+        "contradiction",
+    ),
+    (
+        "Who painted the ceiling of the Sistine Chapel?",
+        "Michelangelo painted the ceiling of the Sistine Chapel.",
+        "Michelangelo",
+        "Raphael painted the ceiling of the Sistine Chapel.",
+        "wrong_entity",
+    ),
+    (
+        "What is the smallest country in the world?",
+        "Vatican City is the smallest country in the world.",
+        "Vatican City",
+        "Monaco is the smallest country in the world.",
+        "wrong_entity",
+    ),
+    (
+        "What is the study of living organisms called?",
+        "The study of living organisms is called biology.",
+        "Biology",
+        "The study of living organisms is called geology.",
+        "wrong_entity",
+    ),
+    (
+        "How many strings does a standard guitar have?",
+        "A standard guitar has six strings.",
+        "Six",
+        "A standard guitar has four strings.",
+        "wrong_entity",
+    ),
+    (
+        "What is the largest mammal on Earth?",
+        "The blue whale is the largest mammal on Earth.",
+        "Blue whale",
+        "The elephant is the largest mammal on Earth.",
+        "wrong_entity",
+    ),
+    (
+        "What is the chemical symbol for gold?",
+        "The chemical symbol for gold is Au.",
+        "Au",
+        "The chemical symbol for gold is Ag.",
+        "wrong_entity",
+    ),
+    (
+        "In which year did the first man land on the Moon?",
+        "The first Moon landing was in 1969.",
+        "1969",
+        "The first Moon landing was in 1979.",
+        "wrong_entity",
+    ),
+    (
+        "What is the national language of Brazil?",
+        "The national language of Brazil is Portuguese.",
+        "Portuguese",
+        "The national language of Brazil is Spanish.",
+        "wrong_entity",
+    ),
+    (
+        "What is the capital of Australia?",
+        "The capital of Australia is Canberra.",
+        "Canberra",
+        "The capital of Australia is Sydney.",
+        "wrong_entity",
+    ),
+    (
+        "Who discovered penicillin?",
+        "Alexander Fleming discovered penicillin.",
+        "Alexander Fleming",
+        "Louis Pasteur discovered penicillin.",
+        "wrong_entity",
+    ),
+    (
+        "What is the largest desert in the world?",
+        "The Antarctic Desert is the largest desert in the world.",
+        "Antarctic Desert",
+        "The Sahara is the largest desert in the world.",
+        "wrong_entity",
+    ),
+    (
+        "How many teeth does a typical adult human have?",
+        "A typical adult human has 32 teeth.",
+        "32",
+        "A typical adult human has 28 teeth.",
+        "wrong_entity",
+    ),
+    (
+        "What is the fastest land animal?",
+        "The cheetah is the fastest land animal.",
+        "Cheetah",
+        "The lion is the fastest land animal.",
+        "wrong_entity",
+    ),
+    (
+        "What is the main ingredient in traditional bread?",
+        "The main ingredient in traditional bread is flour.",
+        "Flour",
+        "The main ingredient in traditional bread is sugar.",
+        "wrong_entity",
+    ),
+    (
+        "Who wrote the play Hamlet?",
+        "Hamlet was written by William Shakespeare.",
+        "William Shakespeare",
+        "Hamlet was written by Christopher Marlowe.",
+        "wrong_entity",
+    ),
+    (
+        "What is the chemical symbol for sodium?",
+        "The chemical symbol for sodium is Na.",
+        "Na",
+        "The chemical symbol for sodium is So.",
+        "wrong_entity",
+    ),
+    (
+        "What is the largest internal organ in the human body?",
+        "The liver is the largest internal organ in the human body.",
+        "Liver",
+        "The heart is the largest internal organ in the human body.",
+        "wrong_entity",
+    ),
+    (
+        "In which year did the Titanic sink?",
+        "The Titanic sank in 1912.",
+        "1912",
+        "The Titanic sank in 1920.",
+        "wrong_entity",
+    ),
 ]
 
 
@@ -153,7 +367,10 @@ def build_rag_retrieval() -> list[dict]:
         labeled.append(_good(row))
         ref = row["reference_output"]
         if i % 2 == 0:
-            bad = ref.rstrip(".") + ", according to a 2050 government study not present in the passage."
+            bad = (
+                ref.rstrip(".")
+                + ", according to a 2050 government study not present in the passage."
+            )
             labeled.append(_bad(row, bad, "unfaithful_to_context"))
         else:
             # contradiction: negate the first assertion of the reference

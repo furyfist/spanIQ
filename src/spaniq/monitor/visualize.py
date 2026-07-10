@@ -14,6 +14,7 @@ def export_timeline_png(
 ) -> str:
     """Generate a matplotlib timeline chart as PNG. Returns output_path."""
     import matplotlib
+
     matplotlib.use("Agg")  # non-interactive backend — safe in CLI and tests
     import matplotlib.pyplot as plt
 
@@ -31,7 +32,10 @@ def export_timeline_png(
 
     ax.plot(x, scores, color="#2563eb", linewidth=1.5, zorder=3)
     ax.axhline(
-        y=threshold, color="#dc2626", linestyle="--", linewidth=1,
+        y=threshold,
+        color="#dc2626",
+        linestyle="--",
+        linewidth=1,
         label=f"threshold ({threshold})",
     )
 

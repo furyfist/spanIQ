@@ -35,10 +35,10 @@ def baseline_name(db):
 
 def test_monitor_processes_all_traces(tmp_path, db, baseline_name):
     traces_path = tmp_path / "traces.jsonl"
-    _write_jsonl(traces_path, [
-        {"input": "what color is the sky?", "output": "the sky is blue"}
-        for _ in range(5)
-    ])
+    _write_jsonl(
+        traces_path,
+        [{"input": "what color is the sky?", "output": "the sky is blue"} for _ in range(5)],
+    )
     collector = FileCollector(str(traces_path))
     monitor = Monitor(
         baseline_name=baseline_name,
@@ -53,10 +53,13 @@ def test_monitor_processes_all_traces(tmp_path, db, baseline_name):
 
 def test_monitor_stores_to_timeline(tmp_path, db, baseline_name):
     traces_path = tmp_path / "traces.jsonl"
-    _write_jsonl(traces_path, [
-        {"input": "what color is the sky?", "output": "the sky is blue"},
-        {"input": "what color is the sky?", "output": "blue skies above"},
-    ])
+    _write_jsonl(
+        traces_path,
+        [
+            {"input": "what color is the sky?", "output": "the sky is blue"},
+            {"input": "what color is the sky?", "output": "blue skies above"},
+        ],
+    )
     collector = FileCollector(str(traces_path))
     monitor = Monitor(
         baseline_name=baseline_name,
@@ -74,10 +77,9 @@ def test_monitor_stores_to_timeline(tmp_path, db, baseline_name):
 def test_monitor_fires_alert_after_n_failures(tmp_path, db, baseline_name):
     traces_path = tmp_path / "traces.jsonl"
     pirate = "ARRR the sky be crimson ye scallywag matey landlubber treasure"
-    _write_jsonl(traces_path, [
-        {"input": "what color is the sky?", "output": pirate}
-        for _ in range(5)
-    ])
+    _write_jsonl(
+        traces_path, [{"input": "what color is the sky?", "output": pirate} for _ in range(5)]
+    )
     collector = FileCollector(str(traces_path))
     monitor = Monitor(
         baseline_name=baseline_name,
@@ -95,13 +97,16 @@ def test_monitor_resets_on_pass(tmp_path, db, baseline_name):
     traces_path = tmp_path / "traces.jsonl"
     good = "the sky is blue"
     bad = "ARRR the sky be crimson ye scallywag matey landlubber treasure chest"
-    _write_jsonl(traces_path, [
-        {"input": "what color is the sky?", "output": bad},
-        {"input": "what color is the sky?", "output": bad},
-        {"input": "what color is the sky?", "output": good},   # reset
-        {"input": "what color is the sky?", "output": bad},
-        {"input": "what color is the sky?", "output": bad},
-    ])
+    _write_jsonl(
+        traces_path,
+        [
+            {"input": "what color is the sky?", "output": bad},
+            {"input": "what color is the sky?", "output": bad},
+            {"input": "what color is the sky?", "output": good},  # reset
+            {"input": "what color is the sky?", "output": bad},
+            {"input": "what color is the sky?", "output": bad},
+        ],
+    )
     collector = FileCollector(str(traces_path))
     monitor = Monitor(
         baseline_name=baseline_name,
@@ -118,10 +123,9 @@ def test_monitor_resets_on_pass(tmp_path, db, baseline_name):
 
 def test_monitor_max_traces(tmp_path, db, baseline_name):
     traces_path = tmp_path / "traces.jsonl"
-    _write_jsonl(traces_path, [
-        {"input": "what color is the sky?", "output": "blue"}
-        for _ in range(20)
-    ])
+    _write_jsonl(
+        traces_path, [{"input": "what color is the sky?", "output": "blue"} for _ in range(20)]
+    )
     collector = FileCollector(str(traces_path))
     monitor = Monitor(
         baseline_name=baseline_name,
@@ -136,10 +140,10 @@ def test_monitor_max_traces(tmp_path, db, baseline_name):
 
 def test_monitor_report_has_pass_rates(tmp_path, db, baseline_name):
     traces_path = tmp_path / "traces.jsonl"
-    _write_jsonl(traces_path, [
-        {"input": "what color is the sky?", "output": "the sky is blue"}
-        for _ in range(3)
-    ])
+    _write_jsonl(
+        traces_path,
+        [{"input": "what color is the sky?", "output": "the sky is blue"} for _ in range(3)],
+    )
     collector = FileCollector(str(traces_path))
     monitor = Monitor(
         baseline_name=baseline_name,
@@ -161,9 +165,7 @@ def test_monitor_uses_correct_baseline_outputs(tmp_path, db):
         outputs=["unique baseline output"] * 15,
     )
     traces_path = tmp_path / "traces.jsonl"
-    _write_jsonl(traces_path, [
-        {"input": "unique prompt", "output": "unique baseline output"}
-    ])
+    _write_jsonl(traces_path, [{"input": "unique prompt", "output": "unique baseline output"}])
     collector = FileCollector(str(traces_path))
     monitor = Monitor(
         baseline_name="unique-base",

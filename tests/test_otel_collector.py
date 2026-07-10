@@ -1,27 +1,36 @@
 """Tests for TraceAssembler (Step 5) and OTelCollector (Step 6)."""
+
 from __future__ import annotations
 
 import time
 
-import pytest
-
+from spaniq.attribution.component import ComponentKind as CK
 from spaniq.monitor.collectors.otel import (
-    SpanConverter,
+    ComponentKind,
     TraceAssembler,
     _ConvertedSpan,
-    ComponentKind,
 )
-from spaniq.attribution.component import ComponentKind as CK
 
 
-def _cspan(trace_id: str = "t1", span_id: str = "s1",
-           parent_id: str | None = None,
-           inp: str = "in", out: str = "out",
-           kind: ComponentKind = CK.GENERATION) -> _ConvertedSpan:
+def _cspan(
+    trace_id: str = "t1",
+    span_id: str = "s1",
+    parent_id: str | None = None,
+    inp: str = "in",
+    out: str = "out",
+    kind: ComponentKind = CK.GENERATION,
+) -> _ConvertedSpan:
     return _ConvertedSpan(
-        trace_id=trace_id, span_id=span_id, parent_span_id=parent_id,
-        input=inp, output=out, component_name="llm", component_kind=kind,
-        latency_ms=100.0, error=False, timestamp="0",
+        trace_id=trace_id,
+        span_id=span_id,
+        parent_span_id=parent_id,
+        input=inp,
+        output=out,
+        component_name="llm",
+        component_kind=kind,
+        latency_ms=100.0,
+        error=False,
+        timestamp="0",
     )
 
 
@@ -61,6 +70,7 @@ class TestTraceAssembler:
 
     def test_skipped_span_ignored(self):
         from spaniq.monitor.collectors.otel import _ConvertedSpan
+
         skipped = _ConvertedSpan.skip()
         result = self.asm.add_span(skipped)
         assert result is None

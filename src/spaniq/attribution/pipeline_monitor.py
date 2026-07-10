@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-import json
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 
 from rich.console import Console
 
@@ -222,10 +220,7 @@ class PipelineMonitor:
                 break
         duration = time.perf_counter() - start
 
-        alarms = {
-            comp: dict(state.online_alarms)
-            for comp, state in self._state.items()
-        }
+        alarms = {comp: dict(state.online_alarms) for comp, state in self._state.items()}
         pass_rates = {
             comp: {
                 m: self._pass_counts[comp].get(m, 0) / total

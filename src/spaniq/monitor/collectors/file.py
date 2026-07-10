@@ -65,6 +65,7 @@ class FileCollector(BaseCollector):
         components = None
         if "components" in obj and isinstance(obj["components"], list):
             from spaniq.attribution.component import ComponentKind, ComponentSpan
+
             spans = []
             for c in obj["components"]:
                 if not isinstance(c, dict) or "name" not in c or "output" not in c:
@@ -74,14 +75,16 @@ class FileCollector(BaseCollector):
                     kind = ComponentKind(kind_str)
                 except ValueError:
                     kind = ComponentKind.DEFAULT
-                spans.append(ComponentSpan(
-                    name=c["name"],
-                    kind=kind,
-                    output=c["output"],
-                    latency_ms=c.get("latency_ms"),
-                    error=bool(c.get("error", False)),
-                    metadata=c.get("metadata"),
-                ))
+                spans.append(
+                    ComponentSpan(
+                        name=c["name"],
+                        kind=kind,
+                        output=c["output"],
+                        latency_ms=c.get("latency_ms"),
+                        error=bool(c.get("error", False)),
+                        metadata=c.get("metadata"),
+                    )
+                )
             if spans:
                 components = spans
         return Trace(

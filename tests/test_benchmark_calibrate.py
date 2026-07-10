@@ -1,9 +1,10 @@
 """Phase 7 — calibration/test split with disclosed threshold selection."""
+
 from __future__ import annotations
 
 import pytest
 
-from benchmarks.analysis.calibrate import evaluate_accuracy, _split, CALIBRATION_SEED
+from benchmarks.analysis.calibrate import CALIBRATION_SEED, _split, evaluate_accuracy
 from benchmarks.runners.spaniq_runner import LabeledResult, Prediction
 
 
@@ -30,8 +31,16 @@ def test_split_changes_with_seed():
 
 def test_perfect_separation_scores_perfectly():
     # bad outputs score low, good high, cleanly separable in both folds
-    data = [(0.1, "bad"), (0.15, "bad"), (0.2, "bad"), (0.25, "bad"),
-            (0.8, "good"), (0.85, "good"), (0.9, "good"), (0.95, "good")]
+    data = [
+        (0.1, "bad"),
+        (0.15, "bad"),
+        (0.2, "bad"),
+        (0.25, "bad"),
+        (0.8, "good"),
+        (0.85, "good"),
+        (0.9, "good"),
+        (0.95, "good"),
+    ]
     report = evaluate_accuracy(_labeled(data))
     assert report.f1 == pytest.approx(1.0)
     assert report.roc_auc == pytest.approx(1.0)

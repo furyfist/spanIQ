@@ -14,8 +14,6 @@ class Trace:
     input: str
     output: str
     trace_id: str = field(default_factory=lambda: str(uuid4()))
-    timestamp: str = field(
-        default_factory=lambda: datetime.now(timezone.utc).isoformat()
-    )
+    timestamp: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     metadata: dict | None = None
     components: list[ComponentSpan] | None = None

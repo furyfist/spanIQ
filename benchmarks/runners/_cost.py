@@ -4,6 +4,7 @@ Groq is free in practice, but we report what the same call would cost so the
 benchmark table shows an honest 'in production this is non-zero' number.
 Rate mirrors the groq_runner estimate ($0.27 / 1M tokens, both directions).
 """
+
 from __future__ import annotations
 
 _RATE_PER_MILLION = 0.27

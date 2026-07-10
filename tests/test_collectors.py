@@ -19,10 +19,7 @@ def _write_jsonl(path, records: list[dict]) -> None:
 
 def test_file_collector_batch(tmp_path):
     p = tmp_path / "traces.jsonl"
-    records = [
-        {"input": f"q{i}", "output": f"a{i}"}
-        for i in range(5)
-    ]
+    records = [{"input": f"q{i}", "output": f"a{i}"} for i in range(5)]
     _write_jsonl(p, records)
     collector = FileCollector(str(p))
     traces = list(collector.collect())
@@ -31,9 +28,12 @@ def test_file_collector_batch(tmp_path):
 
 def test_file_collector_parses_fields(tmp_path):
     p = tmp_path / "t.jsonl"
-    _write_jsonl(p, [
-        {"input": "hi", "output": "hello", "trace_id": "abc123", "metadata": {"k": "v"}},
-    ])
+    _write_jsonl(
+        p,
+        [
+            {"input": "hi", "output": "hello", "trace_id": "abc123", "metadata": {"k": "v"}},
+        ],
+    )
     collector = FileCollector(str(p))
     traces = list(collector.collect())
     t = traces[0]
@@ -49,6 +49,7 @@ def test_file_collector_handles_malformed(tmp_path, caplog):
         fh.write("not json\n")
         fh.write(json.dumps({"input": "ok", "output": "fine"}) + "\n")
     import logging
+
     with caplog.at_level(logging.WARNING):
         traces = list(FileCollector(str(p)).collect())
     assert len(traces) == 1
@@ -57,11 +58,14 @@ def test_file_collector_handles_malformed(tmp_path, caplog):
 
 def test_file_collector_skips_missing_fields(tmp_path):
     p = tmp_path / "partial.jsonl"
-    _write_jsonl(p, [
-        {"input": "only input"},          # missing output → skip
-        {"output": "only output"},        # missing input → skip
-        {"input": "both", "output": "ok"},
-    ])
+    _write_jsonl(
+        p,
+        [
+            {"input": "only input"},  # missing output → skip
+            {"output": "only output"},  # missing input → skip
+            {"input": "both", "output": "ok"},
+        ],
+    )
     traces = list(FileCollector(str(p)).collect())
     assert len(traces) == 1
     assert traces[0].input == "both"
@@ -110,6 +114,7 @@ def test_sdk_collector_ingest_sets_fields():
 def test_langfuse_collector_raises_without_dep():
     with patch.dict("sys.modules", {"langfuse": None}):
         from spaniq.monitor.collectors.langfuse import LangfuseCollector
+
         collector = LangfuseCollector(poll_interval=0)
         with pytest.raises(ImportError, match="pip install spaniq\\[langfuse\\]"):
             next(collector.collect())
@@ -147,8 +152,10 @@ def test_langfuse_collector_yields_traces_from_mock():
 
     collector = LangfuseCollector(poll_interval=0)
 
-    with patch.dict("sys.modules", {"langfuse": mock_langfuse_module}), \
-         patch("spaniq.monitor.collectors.langfuse.time.sleep", side_effect=_fake_sleep):
+    with (
+        patch.dict("sys.modules", {"langfuse": mock_langfuse_module}),
+        patch("spaniq.monitor.collectors.langfuse.time.sleep", side_effect=_fake_sleep),
+    ):
         try:
             for t in collector.collect():
                 collected.append(t)

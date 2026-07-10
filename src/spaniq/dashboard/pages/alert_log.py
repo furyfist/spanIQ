@@ -1,12 +1,11 @@
 """Alert Log page — sortable/filterable table of fired alerts."""
-from __future__ import annotations
 
-import io
+from __future__ import annotations
 
 import streamlit as st
 
-from spaniq.dashboard.config import DashboardConfig
 from spaniq.dashboard.components.filters import METRICS
+from spaniq.dashboard.config import DashboardConfig
 
 
 def render(config: DashboardConfig) -> None:
@@ -14,6 +13,7 @@ def render(config: DashboardConfig) -> None:
 
     try:
         from spaniq.monitor.timeline_store import TimelineStore
+
         store = TimelineStore(config.db_path)
     except Exception as exc:
         st.error(f"Could not open database: {exc}")
@@ -42,9 +42,18 @@ def render(config: DashboardConfig) -> None:
     st.metric("Alerts shown", len(alerts))
 
     import pandas as pd
+
     df = pd.DataFrame(alerts)
-    display_cols = ["timestamp", "metric_name", "component", "score",
-                    "threshold", "severity", "consecutive_count", "message"]
+    display_cols = [
+        "timestamp",
+        "metric_name",
+        "component",
+        "score",
+        "threshold",
+        "severity",
+        "consecutive_count",
+        "message",
+    ]
     display_cols = [c for c in display_cols if c in df.columns]
     df = df[display_cols]
     df["timestamp"] = df["timestamp"].str[:19]

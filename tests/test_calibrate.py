@@ -1,6 +1,7 @@
 """Tests for empirical CUSUM h calibration."""
+
 import numpy as np
-import pytest
+
 from spaniq.attribution.changepoint.calibrate import calibrate_h
 
 

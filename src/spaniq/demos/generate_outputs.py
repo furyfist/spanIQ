@@ -20,9 +20,7 @@ def generate_outputs(
     try:
         from groq import Groq
     except ImportError as exc:
-        raise ImportError(
-            "groq SDK not installed — run: pip install spaniq[groq]"
-        ) from exc
+        raise ImportError("groq SDK not installed — run: pip install spaniq[groq]") from exc
 
     key = api_key or os.environ.get("GROQ_API_KEY")
     if not key:

@@ -1,6 +1,7 @@
 """Tests for CUSUM online changepoint primitive."""
+
 import random
-import pytest
+
 from spaniq.attribution.changepoint.cusum import CusumState, cusum_update, run_cusum
 
 

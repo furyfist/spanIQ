@@ -1,4 +1,5 @@
 """End-to-end integration test: full pipeline from baseline creation to alert detection."""
+
 from __future__ import annotations
 
 import json
@@ -30,10 +31,7 @@ def test_full_monitoring_pipeline(tmp_path):
 
     # 2. write 10 normal + 10 clearly drifted traces
     traces_path = tmp_path / "traces.jsonl"
-    normal = [
-        {"input": "what color is the sky?", "output": "the sky is blue"}
-        for _ in range(10)
-    ]
+    normal = [{"input": "what color is the sky?", "output": "the sky is blue"} for _ in range(10)]
     drifted = [
         {
             "input": "what color is the sky?",

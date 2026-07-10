@@ -98,11 +98,13 @@ def attribute(
     event_cluster = max(clusters, key=lambda c: (len(c), c[0].break_trace_index))
     # tie-break: earlier PELT index first; on tie prefer more broken metrics (wider impact = cause);
     # final tie-break: earlier CUSUM alarm
-    event_cluster.sort(key=lambda b: (
-        b.break_trace_index,
-        -len(b.broken_metrics),
-        b.cusum_alarm_index if b.cusum_alarm_index is not None else 99999,
-    ))
+    event_cluster.sort(
+        key=lambda b: (
+            b.break_trace_index,
+            -len(b.broken_metrics),
+            b.cusum_alarm_index if b.cusum_alarm_index is not None else 99999,
+        )
+    )
 
     n_metrics = len(metrics)
     for i, cb in enumerate(event_cluster):

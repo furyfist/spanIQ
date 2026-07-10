@@ -1,4 +1,5 @@
 """Attribution page — interactive V3 changepoint/cascade visualization."""
+
 from __future__ import annotations
 
 import streamlit as st
@@ -8,10 +9,13 @@ from spaniq.dashboard.config import DashboardConfig
 
 def render(config: DashboardConfig) -> None:
     st.title("🔍 Attribution")
-    st.caption("Root-cause analysis powered by PELT changepoint detection + CUSUM cascade ranking (V3).")
+    st.caption(
+        "Root-cause analysis powered by PELT changepoint detection + CUSUM cascade ranking (V3)."
+    )
 
     try:
         from spaniq.monitor.timeline_store import TimelineStore
+
         store = TimelineStore(config.db_path)
     except Exception as exc:
         st.error(f"Could not open database: {exc}")
@@ -24,7 +28,9 @@ def render(config: DashboardConfig) -> None:
 
     col_l, col_r = st.columns([1, 3])
     with col_l:
-        last_n = st.number_input("Traces to analyse", min_value=50, max_value=2000, value=500, step=50)
+        last_n = st.number_input(
+            "Traces to analyse", min_value=50, max_value=2000, value=500, step=50
+        )
         penalty = st.number_input("PELT penalty (0 = auto)", min_value=0.0, value=0.0, step=0.5)
         warmup = st.number_input("Warmup traces", min_value=0, max_value=100, value=20, step=5)
         run_btn = st.button("Run Attribution", type="primary")
@@ -36,10 +42,15 @@ def render(config: DashboardConfig) -> None:
     with st.spinner("Running changepoint detection…"):
         try:
             from spaniq.attribution.attributor import attribute
+
             result = attribute(
                 timeline=store,
                 components=components,
-                metrics=["ResponseDriftMetric", "SemanticSimilarityMetric", "OutputStabilityMetric"],
+                metrics=[
+                    "ResponseDriftMetric",
+                    "SemanticSimilarityMetric",
+                    "OutputStabilityMetric",
+                ],
                 last_n=int(last_n),
                 pelt_penalty=penalty if penalty > 0 else None,
                 warmup=int(warmup),
@@ -84,17 +95,19 @@ def _render_cascade_chart(result) -> None:
     color_map = {"root_cause": "#ef4444", "cascade": "#f59e0b", "healthy": "#22c55e"}
     fig = go.Figure()
 
-    for i, comp in enumerate(result.components):
+    for _i, comp in enumerate(result.components):
         color = color_map.get(comp.role, "#6b7280")
         break_x = comp.break_index or 0
-        fig.add_trace(go.Bar(
-            x=[break_x],
-            y=[comp.name],
-            orientation="h",
-            marker_color=color,
-            name=f"{comp.name} ({comp.role})",
-            hovertemplate=f"<b>{comp.name}</b><br>Role: {comp.role}<br>Break: {break_x}<extra></extra>",
-        ))
+        fig.add_trace(
+            go.Bar(
+                x=[break_x],
+                y=[comp.name],
+                orientation="h",
+                marker_color=color,
+                name=f"{comp.name} ({comp.role})",
+                hovertemplate=f"<b>{comp.name}</b><br>Role: {comp.role}<br>Break: {break_x}<extra></extra>",
+            )
+        )
 
     fig.update_layout(
         template="plotly_dark",
@@ -113,12 +126,14 @@ def _render_component_table(result) -> None:
     st.subheader("Component details")
     rows = []
     for comp in result.components:
-        rows.append({
-            "Component": comp.name,
-            "Role": comp.role,
-            "Break index": comp.break_index or "—",
-            "Lead gap": getattr(comp, "lead_gap", "—"),
-            "Metric": getattr(comp, "primary_metric", "—"),
-        })
+        rows.append(
+            {
+                "Component": comp.name,
+                "Role": comp.role,
+                "Break index": comp.break_index or "—",
+                "Lead gap": getattr(comp, "lead_gap", "—"),
+                "Metric": getattr(comp, "primary_metric", "—"),
+            }
+        )
     if rows:
         st.dataframe(pd.DataFrame(rows), use_container_width=True)

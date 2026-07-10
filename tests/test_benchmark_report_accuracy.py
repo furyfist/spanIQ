@@ -1,4 +1,5 @@
 """Phase 8 — accuracy-first reporting with per-prediction audit trail."""
+
 from __future__ import annotations
 
 import csv
@@ -6,7 +7,10 @@ import pathlib
 import tempfile
 
 from benchmarks.analysis.report_accuracy import (
-    build_reports, save_accuracy_csv, save_predictions_csv, save_summary_md,
+    build_reports,
+    save_accuracy_csv,
+    save_predictions_csv,
+    save_summary_md,
 )
 from benchmarks.runners.spaniq_runner import LabeledResult, Prediction
 

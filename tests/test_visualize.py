@@ -33,6 +33,7 @@ def test_export_png_creates_file(tmp_path, populated_store):
     out = str(tmp_path / "chart.png")
     result = export_timeline_png(populated_store, "ResponseDriftMetric", output_path=out)
     import os
+
     assert os.path.exists(result)
     assert result == out
 

@@ -1,7 +1,9 @@
 """Tests for PELT offline changepoint wrapper."""
+
 import numpy as np
 import pytest
-from spaniq.attribution.changepoint.pelt import detect_changepoints, bic_penalty
+
+from spaniq.attribution.changepoint.pelt import bic_penalty, detect_changepoints
 
 
 def _series(n=200, seed=42):
@@ -20,7 +22,9 @@ def test_single_break_localized():
 
 def test_two_breaks():
     rng = np.random.default_rng(0)
-    s = np.concatenate([rng.normal(0.7, 0.03, 100), rng.normal(0.3, 0.03, 100), rng.normal(0.7, 0.03, 100)])
+    s = np.concatenate(
+        [rng.normal(0.7, 0.03, 100), rng.normal(0.3, 0.03, 100), rng.normal(0.7, 0.03, 100)]
+    )
     cps = detect_changepoints(s, penalty=3.0)
     assert len(cps) == 2
 

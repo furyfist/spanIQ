@@ -1,6 +1,7 @@
 """Generate offline fixtures for the cascade attribution demo.
 Run once: python -m spaniq.demos._gen_cascade_fixtures
 """
+
 from __future__ import annotations
 
 import json
@@ -97,10 +98,7 @@ def generate(output_dir: Path = OUTPUT_DIR) -> Path:
         broken = i >= BREAK_TRACE
         generation_broken = i >= BREAK_TRACE + GENERATION_LAG
 
-        if broken:
-            retrieval_out = random.choice(broken_ctx)
-        else:
-            retrieval_out = random.choice(healthy_ctx)
+        retrieval_out = random.choice(broken_ctx) if broken else random.choice(healthy_ctx)
 
         if generation_broken:
             generation_out = random.choice(broken_gen_late)

@@ -5,6 +5,7 @@ ones on a labeled dataset. Determinism and $0 cost are still asserted, but as
 the secondary facts they are: they hold by construction (no LLM call), and they
 are not evidence that spanIQ is better than an LLM judge.
 """
+
 from __future__ import annotations
 
 import pathlib
@@ -14,7 +15,10 @@ import pytest
 
 from benchmarks.analysis import metrics as m
 from benchmarks.analysis.calibrate import (
-    CALIBRATION_FRACTION, CALIBRATION_SEED, _split, evaluate_accuracy,
+    CALIBRATION_FRACTION,
+    CALIBRATION_SEED,
+    _split,
+    evaluate_accuracy,
 )
 from benchmarks.analysis.report_accuracy import build_reports, save_predictions_csv
 from benchmarks.config import DATASET_FILES

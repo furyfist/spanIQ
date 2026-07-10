@@ -7,6 +7,7 @@ Swapped traces: 20 from llama-3.1-8b-instant (cheaper, shorter outputs).
 Expected: OutputStabilityMetric detects structural change (word count drops).
 ResponseDrift may also fire.
 """
+
 from __future__ import annotations
 
 import json
@@ -97,10 +98,18 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_swap.db") -> None:
     )
     report = monitor.run()
 
-    export_timeline_png(monitor.timeline_store, "OutputStabilityMetric",
-                        output_path=str(OUTPUT_DIR / "model_swap_stability.png"), last_n=40)
-    export_timeline_png(monitor.timeline_store, "ResponseDriftMetric",
-                        output_path=str(OUTPUT_DIR / "model_swap_drift.png"), last_n=40)
+    export_timeline_png(
+        monitor.timeline_store,
+        "OutputStabilityMetric",
+        output_path=str(OUTPUT_DIR / "model_swap_stability.png"),
+        last_n=40,
+    )
+    export_timeline_png(
+        monitor.timeline_store,
+        "ResponseDriftMetric",
+        output_path=str(OUTPUT_DIR / "model_swap_drift.png"),
+        last_n=40,
+    )
 
     console.print("\n[bold]results:[/bold]")
     console.print(f"  total traces: {report.total_traces}")

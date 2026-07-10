@@ -8,6 +8,7 @@ SDK dependency is needed.
 
 Requires: GROQ_API_KEY
 """
+
 from __future__ import annotations
 
 import os
@@ -16,9 +17,12 @@ import time
 
 from benchmarks.runners._cost import token_cost
 from benchmarks.runners.spaniq_runner import (
-    BenchmarkResult, LabeledResult, RunResult, _load_dataset, predictions_from_scores,
+    BenchmarkResult,
+    LabeledResult,
+    RunResult,
+    _load_dataset,
+    predictions_from_scores,
 )
-
 
 # Mirrors a standard Langfuse LLM-as-a-Judge correctness template: structured
 # input, 1-10 scale, JSON output with score + reasoning.
@@ -43,7 +47,7 @@ Respond with ONLY a JSON object:
 def _check_deps() -> None:
     """Raise if the Groq key needed for the judge call is missing."""
     if not os.environ.get("GROQ_API_KEY"):
-        raise EnvironmentError("GROQ_API_KEY not set")
+        raise OSError("GROQ_API_KEY not set")
     try:
         import openai  # noqa: F401
     except ImportError as exc:
@@ -120,7 +124,9 @@ def run_langfuse_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benc
         scores = [s for s, _, _ in judged]
         cost = sum(token_cost(pt, ct) for _, pt, ct in judged)
         result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=cost))
-        print(f"    langfuse run {run_idx + 1}/{n_runs}: mean={sum(scores)/len(scores):.3f} t={elapsed:.1f}s")
+        print(
+            f"    langfuse run {run_idx + 1}/{n_runs}: mean={sum(scores) / len(scores):.3f} t={elapsed:.1f}s"
+        )
 
     return result
 

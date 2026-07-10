@@ -7,6 +7,7 @@ Broken traces: 20 WITHOUT context (simulating retrieval failure).
 Expected: SemanticSimilarity drops (answers diverge from grounded baselines).
 ResponseDrift detects hedging words ("I'm not sure", "generally", "typically").
 """
+
 from __future__ import annotations
 
 import json
@@ -22,8 +23,7 @@ CONTEXT = (
     "Items must be in original condition. Contact support@store.com to initiate."
 )
 SYSTEM_WITH_CONTEXT = (
-    "You are a customer support agent. "
-    f"Use the following policy to answer:\n\n{CONTEXT}"
+    f"You are a customer support agent. Use the following policy to answer:\n\n{CONTEXT}"
 )
 SYSTEM_NO_CONTEXT = "You are a customer support agent. Answer the customer's question."
 MODEL = "llama-3.3-70b-versatile"
@@ -111,10 +111,18 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_rag.db") -> None:
     )
     report = monitor.run()
 
-    export_timeline_png(monitor.timeline_store, "SemanticSimilarityMetric",
-                        output_path=str(OUTPUT_DIR / "rag_breakage_semantic.png"), last_n=40)
-    export_timeline_png(monitor.timeline_store, "ResponseDriftMetric",
-                        output_path=str(OUTPUT_DIR / "rag_breakage_drift.png"), last_n=40)
+    export_timeline_png(
+        monitor.timeline_store,
+        "SemanticSimilarityMetric",
+        output_path=str(OUTPUT_DIR / "rag_breakage_semantic.png"),
+        last_n=40,
+    )
+    export_timeline_png(
+        monitor.timeline_store,
+        "ResponseDriftMetric",
+        output_path=str(OUTPUT_DIR / "rag_breakage_drift.png"),
+        last_n=40,
+    )
 
     console.print("\n[bold]results:[/bold]")
     console.print(f"  total traces: {report.total_traces}")

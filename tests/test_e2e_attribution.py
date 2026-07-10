@@ -1,8 +1,10 @@
 """E2E attribution test using committed cascade fixtures."""
+
 from __future__ import annotations
 
-import tempfile
+import contextlib
 import os
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -53,14 +55,15 @@ def test_e2e_cascade_attribution():
             break_components = [b.component for b in all_breaks]
             assert "retrieval" in break_components or "generation" in break_components
 
-        assert "search_tool" in result.healthy or result.root_cause is None or \
-            result.root_cause.component != "search_tool"
+        assert (
+            "search_tool" in result.healthy
+            or result.root_cause is None
+            or result.root_cause.component != "search_tool"
+        )
 
         if result.root_cause and result.cascade:
             assert result.root_cause.break_trace_index <= result.cascade[0].break_trace_index
 
     finally:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(db_path)
-        except OSError:
-            pass

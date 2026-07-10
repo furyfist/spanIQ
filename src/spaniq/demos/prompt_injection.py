@@ -6,6 +6,7 @@ Injected traces: 20 outputs with system_prompt replaced by pirate persona.
 
 Expected: ResponseDrift PSI spikes at ~trace 21. Alert fires by trace 23.
 """
+
 from __future__ import annotations
 
 import json
@@ -107,8 +108,12 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_injection.db") -> Non
     export_timeline_png(
         monitor.timeline_store, "ResponseDriftMetric", output_path=png_path, last_n=40
     )
-    export_timeline_png(monitor.timeline_store, "SemanticSimilarityMetric",
-                        output_path=str(OUTPUT_DIR / "prompt_injection_semantic.png"), last_n=40)
+    export_timeline_png(
+        monitor.timeline_store,
+        "SemanticSimilarityMetric",
+        output_path=str(OUTPUT_DIR / "prompt_injection_semantic.png"),
+        last_n=40,
+    )
 
     console.print("\n[bold]results:[/bold]")
     console.print(f"  total traces:  {report.total_traces}")

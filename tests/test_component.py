@@ -1,5 +1,7 @@
 """Tests for ComponentSpan and ComponentKind."""
+
 import pytest
+
 from spaniq.attribution.component import ComponentKind, ComponentSpan
 
 

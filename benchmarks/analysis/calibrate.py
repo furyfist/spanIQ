@@ -12,6 +12,7 @@ No tool — including spanIQ — is scored with a threshold tuned on the data it
 graded on. The seed is fixed and committed, so the method is reproducible; only
 which items land in which fold depends on the seed, never the procedure.
 """
+
 from __future__ import annotations
 
 import random

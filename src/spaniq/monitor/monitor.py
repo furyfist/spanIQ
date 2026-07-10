@@ -107,13 +107,15 @@ class Monitor:
         mr_list = []
         for metric in self.metrics:
             score = metric.measure(tc)
-            mr_list.append(MetricResult(
-                metric_name=metric.name,
-                score=score,
-                threshold=metric.threshold,
-                passed=metric.is_successful(),
-                reason=metric.reason,
-            ))
+            mr_list.append(
+                MetricResult(
+                    metric_name=metric.name,
+                    score=score,
+                    threshold=metric.threshold,
+                    passed=metric.is_successful(),
+                    reason=metric.reason,
+                )
+            )
 
         for mr in mr_list:
             self.timeline_store.record(
