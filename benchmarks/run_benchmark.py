@@ -1,8 +1,13 @@
-"""CLI entry point for the determinism benchmark suite.
+"""CLI entry point for the benchmark suite.
+
+The default metric is accuracy: precision / recall / F1 / AUC at catching bad
+outputs on labeled data. The legacy determinism metric (score variance across
+identical runs) remains available via `--metric variance`.
 
 Usage (via spaniq CLI):
     spaniq benchmark --tool spaniq --runs 5
-    spaniq benchmark --tool spaniq,groq --runs 3 --dataset qa_factual
+    spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 5
+    spaniq benchmark --tool spaniq --runs 5 --metric variance
     spaniq benchmark --setup   # download full HF datasets
 
 Direct:
@@ -178,12 +183,19 @@ def _run_variance(tools, dataset_names, runs, output_dir) -> None:
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="spanIQ determinism benchmark suite")
-    parser.add_argument("--tool", default="spaniq")
-    parser.add_argument("--dataset", default="all")
-    parser.add_argument("--runs", type=int, default=5)
-    parser.add_argument("--setup", action="store_true")
-    parser.add_argument("--output", default=str(RESULTS_DIR))
+    parser = argparse.ArgumentParser(
+        description="spanIQ accuracy benchmark suite: precision/recall/F1 at "
+                    "catching bad outputs (positive class = bad)")
+    parser.add_argument("--tool", default="spaniq",
+                        help="comma-separated tools: spaniq,groq,deepeval,ragas,langfuse")
+    parser.add_argument("--dataset", default="all",
+                        help="qa_factual, summarization, rag_retrieval, or all")
+    parser.add_argument("--runs", type=int, default=5,
+                        help="identical runs per tool (default: 5)")
+    parser.add_argument("--setup", action="store_true",
+                        help="download and cache benchmark datasets, then exit")
+    parser.add_argument("--output", default=str(RESULTS_DIR),
+                        help="directory to write results")
     parser.add_argument("--metric", default="accuracy", choices=["accuracy", "variance"],
                         help="accuracy (precision/recall/F1, default) or legacy variance")
     args = parser.parse_args()

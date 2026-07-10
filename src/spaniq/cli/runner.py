@@ -515,7 +515,7 @@ def _build_parser() -> argparse.ArgumentParser:
     dash_p.add_argument("--port", type=int, default=8501, help="Streamlit port")
 
     # ── benchmark ─────────────────────────────────────────────────────────────
-    bench_p = sub.add_parser("benchmark", help="run the accuracy/determinism benchmark suite")
+    bench_p = sub.add_parser("benchmark", help="run the accuracy benchmark suite")
     bench_p.add_argument("--tool", default="spaniq",
                          help="comma-separated tools to benchmark: spaniq,deepeval,ragas,groq,langfuse")
     bench_p.add_argument("--dataset", default="all",
