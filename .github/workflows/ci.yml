@@ -1,6 +1,21 @@
 name: CI
 on: [push, pull_request]
+
 jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      # Pinned so a new ruff release cannot turn the build red on its own.
+      # Keep in sync with the `dev` extra in pyproject.toml.
+      - run: pip install "ruff==0.15.16"
+      - run: ruff check .
+      - run: ruff format --check .
+
   test:
     runs-on: ubuntu-latest
     steps:
@@ -8,7 +23,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+          cache: pip
       - run: pip install -e ".[dev]"
-      - run: ruff check .
-      - run: ruff format --check .
-      - run: pytest -v
+      # The benchmark's optional judges (ragas/deepeval/groq) are not installed;
+      # those tests skip themselves and the rest of the suite runs.
+      - run: pytest -q

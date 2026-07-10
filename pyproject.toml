@@ -57,7 +57,8 @@ all = ["spaniq[otel,dashboard,langfuse,groq,benchmark]"]
 dev = [
     "pytest>=8.0",
     "pytest-xdist>=3.5",
-    "ruff>=0.8.0",
+    # pinned: keep in sync with .github/workflows/ci.yml so CI and local agree
+    "ruff==0.15.16",
 ]
 
 [project.scripts]
@@ -73,9 +74,9 @@ exclude = [".venv", "venv", "build", "dist"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
-
-[tool.ruff.lint.per-file-ignores]
-"src/spaniq/demos/_gen_fixtures.py" = ["E501"]
+# Line length is enforced by `ruff format`, not the linter — E501 only produced
+# noise on lines the formatter deliberately leaves long (URLs, long strings).
+ignore = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
