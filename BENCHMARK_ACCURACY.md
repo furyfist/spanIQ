@@ -107,12 +107,27 @@ Competitor runners skip gracefully if their dependency or `GROQ_API_KEY` is
 missing. The legacy determinism benchmark is still available via
 `--metric variance`.
 
+**ragas dependency note.** `ragas>=0.4` imports
+`langchain_community.chat_models.vertexai`, which `langchain-community>=0.4`
+removed. The `benchmark` extra therefore pins `langchain-community<0.4`. Without
+that pin, ragas fails to import and its row silently disappears from the table.
+
 ## 7. Results
 
 Live run on 2026-07-10 (Python 3.12.7, Windows), `GROQ_API_KEY` set, 3 runs per
 tool per dataset, judge `llama-3.3-70b-versatile`. Source:
-`benchmarks/results_accuracy/`. `ragas` skipped — its v0.4 collections API is not
-importable in this environment (the still-unverified path; see §9).
+`benchmarks/results_accuracy/`.
+
+**`ragas` is absent from this table, and the reason matters.** At the time of the
+run the runner called `single_turn_ascore(sample)`, a method the v0.4 collections
+API does not have. Every call raised `AttributeError`, a bare `except` converted
+each one into the neutral `0.5` fallback, and the tool skipped on an unrelated
+import error. Had it not skipped, it would have reported a full column of
+fabricated `0.5`s as if they were judgments. The runner has since been fixed to
+the real v0.4 API — `ascore(user_input, response, retrieved_contexts)` — and now
+returns genuine scores, and it raises rather than reporting data if every item
+fails. Its row will be filled on the next run with available judge tokens; the
+run above exhausted the Groq free-tier daily token limit.
 
 ### Table 1 — Accuracy (held-out test fold, positive class = bad)
 
@@ -181,6 +196,12 @@ table is computed from anything not in that file.
 
 ## 9. Fairness and limitations
 
+0. **Neutral fallbacks can fake data.** Every LLM-judge runner degrades a failed
+   item to a neutral `0.5`. That is fine for a transient timeout and dangerous for
+   a broken integration: the ragas runner once failed on *every* call and would
+   have reported a full column of `0.5`s as judgments. The ragas prediction path
+   now raises when all items fail. Treat any tool whose scores are uniformly
+   `0.5` as broken, not as evidence.
 1. **Default configs.** Competitors run on defaults; a tuned setup may differ.
 2. **Same judge model for all LLM tools** (`llama-3.3-70b-versatile` via Groq), to
    isolate the framework's contribution from the model's.

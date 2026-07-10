@@ -49,6 +49,35 @@ def test_predictions_from_scores_attaches_dataset_labels():
     assert [p.score for p in preds] == [0.1, 0.95]
 
 
+def test_ragas_uses_the_v04_ascore_api():
+    """Regression: the v0.4 collections metric exposes `ascore`, not
+    `single_turn_ascore`. Calling the wrong name made every item fall back to a
+    fabricated 0.5, which silently faked the ragas row."""
+    ragas_collections = pytest.importorskip("ragas.metrics.collections")
+    faithfulness = ragas_collections.Faithfulness
+    assert hasattr(faithfulness, "ascore")
+    assert not hasattr(faithfulness, "single_turn_ascore")
+
+
+def test_ragas_raises_when_every_item_fails(monkeypatch):
+    """A run where all items error is a broken integration, not data — it must
+    raise instead of reporting a full column of 0.5 fallbacks."""
+    pytest.importorskip("ragas.metrics.collections")
+    monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    import benchmarks.runners.ragas_runner as rr
+
+    class _AlwaysFails:
+        async def ascore(self, **kwargs):
+            raise RuntimeError("judge unreachable")
+
+    monkeypatch.setattr(rr, "_get_ragas_llm", lambda: object())
+    monkeypatch.setattr(
+        "ragas.metrics.collections.Faithfulness", lambda llm: _AlwaysFails()
+    )
+    with pytest.raises(RuntimeError, match="every call failed"):
+        rr.run_ragas_predictions(DATASET_FILES["rag_retrieval"], n_runs=1)
+
+
 def test_competitor_prediction_runners_skip_without_key(monkeypatch):
     """Every competitor's prediction path skips cleanly with no Groq key."""
     monkeypatch.delenv("GROQ_API_KEY", raising=False)

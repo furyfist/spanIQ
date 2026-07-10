@@ -1,10 +1,12 @@
 """ragas benchmark runner — faithfulness via the v0.4 collections API + Groq.
 
-Uses ragas v0.4's collections API (SingleTurnSample / EvaluationDataset /
-Faithfulness from ragas.metrics.collections), judged by Groq's LLaMA through
-the OpenAI-compatible endpoint.
+Uses `Faithfulness` from `ragas.metrics.collections`, scored with the v0.4
+coroutine `ascore(user_input, response, retrieved_contexts) -> MetricResult`,
+judged by Groq's LLaMA through the OpenAI-compatible endpoint.
 
-Requires: pip install ragas>=0.4  +  GROQ_API_KEY
+Requires: ragas>=0.4 and langchain-community<0.4 (ragas.llms.base still imports
+`langchain_community.chat_models.vertexai`, which was removed in 0.4), plus
+GROQ_API_KEY.
 """
 from __future__ import annotations
 
@@ -24,36 +26,16 @@ def _est_tokens(text: str) -> int:
 
 
 def _check_deps() -> None:
-    """Raise ImportError/EnvironmentError if ragas v0.4 API or key is missing."""
+    """Raise ImportError/EnvironmentError if the ragas v0.4 API or key is missing."""
     try:
         from ragas.metrics.collections import Faithfulness  # noqa: F401
-        from ragas.dataset_schema import SingleTurnSample, EvaluationDataset  # noqa: F401
     except ImportError as exc:
         raise ImportError(
-            "ragas v0.4 collections API not available — run: pip install 'ragas>=0.4'"
+            f"ragas v0.4 collections API not importable ({exc}) — needs "
+            "'ragas>=0.4' with 'langchain-community<0.4'"
         ) from exc
     if not os.environ.get("GROQ_API_KEY"):
         raise EnvironmentError("GROQ_API_KEY not set")
-
-
-def _to_samples(rows: list[dict]) -> list:
-    """Convert dataset rows to ragas SingleTurnSample objects.
-
-    rag_retrieval.jsonl fields: input, output, reference_output, context
-    (context is a single string, wrapped into the required list form).
-    """
-    from ragas.dataset_schema import SingleTurnSample
-
-    samples = []
-    for row in rows:
-        context = row.get("context", row.get("reference_output", ""))
-        samples.append(SingleTurnSample(
-            user_input=row["input"],
-            response=row["output"],
-            retrieved_contexts=[context],
-            reference=row.get("reference_output", ""),
-        ))
-    return samples
 
 
 def _get_ragas_llm():
@@ -94,15 +76,19 @@ def run_ragas_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benchma
             f"ragas faithfulness needs retrieved context; {path.name} has none — "
             "use the rag_retrieval dataset"
         )
-    samples = _to_samples(rows)
     llm = _get_ragas_llm()
     result = BenchmarkResult(tool="ragas", dataset=path.stem)
 
     async def _score_all(scorer) -> list[float]:
         out = []
-        for sample in samples:
+        for row in rows:
             try:
-                out.append(float(await scorer.single_turn_ascore(sample)))
+                res = await scorer.ascore(
+                    user_input=row["input"],
+                    response=row["output"],
+                    retrieved_contexts=[row.get("context", "")],
+                )
+                out.append(float(res.value))
             except Exception:
                 out.append(0.5)
         return out
@@ -148,22 +134,41 @@ def run_ragas_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5) -> 
             f"ragas faithfulness needs retrieved context; {path.name} has none — "
             "use the rag_retrieval dataset"
         )
-    samples = _to_samples(rows)
     llm = _get_ragas_llm()
     result = LabeledResult(tool="ragas", dataset=path.stem)
 
-    async def _score_all(scorer) -> list[float]:
-        out = []
-        for sample in samples:
+    async def _score_all(scorer) -> tuple[list[float], int]:
+        """Score every row. Returns (scores, n_failed).
+
+        The v0.4 collections API is `ascore(user_input, response,
+        retrieved_contexts) -> MetricResult`. A per-item failure degrades to the
+        neutral 0.5, but a run where *every* item failed is a broken integration,
+        not data — the caller raises rather than reporting fabricated scores.
+        """
+        out: list[float] = []
+        failed = 0
+        for row in rows:
             try:
-                out.append(float(await scorer.single_turn_ascore(sample)))
+                res = await scorer.ascore(
+                    user_input=row["input"],
+                    response=row["output"],
+                    retrieved_contexts=[row.get("context", "")],
+                )
+                out.append(float(res.value))
             except Exception:
                 out.append(0.5)
-        return out
+                failed += 1
+        return out, failed
 
     for _ in range(n_runs):
         scorer = Faithfulness(llm=llm)
-        scores = asyncio.run(_score_all(scorer))
+        scores, failed = asyncio.run(_score_all(scorer))
+        if failed == len(rows):
+            raise RuntimeError(
+                "ragas scored 0 of "
+                f"{len(rows)} items — every call failed, so the run would report "
+                "fabricated 0.5 fallbacks. Check the ragas/Groq llm_factory interop."
+            )
         result.runs.append(predictions_from_scores(rows, scores))
 
     return result
