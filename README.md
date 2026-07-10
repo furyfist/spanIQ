@@ -50,17 +50,26 @@ spaniq dashboard
 
 ## The benchmark table
 
-*Run 5 times on the same 20-question dataset. Lower variance = more trustworthy scores.*
+*Accuracy at catching bad outputs on a labeled 100-row QA set (positive class =
+bad; thresholds calibrated on a held-out fold). Live run, 2026-07-10.*
 
-| Tool | Mean Score | Std Dev | Cost per 100 evals | Deterministic? |
-|------|-----------|---------|-------------------|---------------|
-| **spanIQ** | 0.8731 | **0.0000** | **$0.00** | ✅ Yes |
-| Groq LLM judge | 0.81 | ~0.04 | ~$0.001 | ❌ No |
-| deepeval (G-Eval) | 0.76 | ~0.12 | ~$0.50 | ❌ No |
-| ragas | 0.74 | ~0.09 | ~$0.40 | ❌ No |
+| Tool | Precision | Recall | F1 | ROC-AUC | Cost / trace | Deterministic |
+|------|-----------|--------|----|---------|--------------|---------------|
+| Groq LLM judge | 1.000 | 1.000 | **1.000** | 1.000 | paid | usually, at temp 0 |
+| deepeval (G-Eval) | 1.000 | 0.833 | **0.909** | 0.971 | paid | usually, at temp 0 |
+| **spanIQ** | 0.806 | 0.967 | **0.879** | 0.857 | **$0.00** | ✅ by construction |
+| langfuse-style | 0.612 | 1.000 | **0.760** | 0.525 | paid | usually, at temp 0 |
 
-> Run this yourself: `spaniq benchmark --tool spaniq --runs 5`
-> With Groq key: `spaniq benchmark --tool spaniq,groq --runs 5`
+**The honest read:** on subtle, lexically-close wrong answers, a real LLM judge
+beats spanIQ's embedding metric on accuracy — and we say so. spanIQ's edge is
+being **deterministic and $0/trace by construction**, and staying useful where
+judges default to passing everything (on the summarization / RAG sets the judges
+collapse to F1 0.667 while spanIQ scores 1.0). They are complementary. Full
+tables, the fairness rule, and a per-item audit trail:
+[`BENCHMARK_ACCURACY.md`](BENCHMARK_ACCURACY.md).
+
+> Run this yourself: `spaniq benchmark --tool spaniq --runs 5 --metric accuracy`
+> Full suite (Groq key): `spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 5 --metric accuracy`
 
 ---
 
@@ -115,7 +124,7 @@ V4 adds one collector at the bottom and one visualization layer at the top. The 
 ### V4 — Ecosystem entry (this release)
 - **OTelCollector** — OTLP/gRPC + HTTP receiver; auto-maps GenAI semconv spans
 - **Streamlit dashboard** — 4 pages: Overview, Drift Timeline, Attribution, Alert Log
-- **Determinism benchmark** — compare spanIQ vs Groq/deepeval/ragas on variance, cost, speed
+- **Accuracy benchmark** — compare spanIQ vs Groq/deepeval/ragas/langfuse on precision/recall/F1 at catching bad outputs (plus cost and determinism)
 - **Quickstart overhaul** — 2-line first-signal experience
 - **Generic span support** — `spaniq.*` attributes for non-GenAI apps
 
@@ -171,8 +180,8 @@ spaniq dashboard                             # NEW
 spaniq dashboard --db spaniq.db --port 8501
 
 # Benchmark (V4)
-spaniq benchmark --tool spaniq --runs 5      # NEW
-spaniq benchmark --tool spaniq,groq --runs 3
+spaniq benchmark --tool spaniq --runs 5 --metric accuracy      # NEW
+spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 3 --metric accuracy
 ```
 
 ---
@@ -181,7 +190,7 @@ spaniq benchmark --tool spaniq,groq --runs 3
 
 | Feature | spanIQ | deepeval | ragas | Phoenix | Langfuse |
 |---|---|---|---|---|---|
-| Deterministic scores | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Deterministic by construction (no LLM call) | ✅ | ❌ | ❌ | ❌ | ❌ |
 | $0 per eval | ✅ | ❌ | ❌ | ❌ | ❌ |
 | Production monitoring | ✅ | ❌ | ❌ | ✅ | ✅ |
 | Changepoint attribution | ✅ | ❌ | ❌ | ❌ | ❌ |

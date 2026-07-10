@@ -1,48 +1,58 @@
-# spanIQ Determinism Benchmark
+# spanIQ Benchmark
 
-> **Being superseded.** This determinism benchmark measures score variance across
-> N identical runs. A live run showed that LLM judges are frequently deterministic
-> too (`temperature=0`), so the "every LLM-as-judge tool shows non-zero spread"
-> framing is not supported. The durable, true facts remain: spanIQ is deterministic
-> **and $0/trace by construction** because it makes no LLM call. The successor is an
-> *accuracy* benchmark (precision / recall / F1 on labeled good-vs-bad outputs) —
-> see `docs/plans/benchmark_v2_accuracy.md`.
+Compares spanIQ against competitor evaluators on the same labeled datasets. The
+**primary metric is accuracy** — precision / recall / F1 / AUC at catching bad
+outputs (positive class = `bad`). The legacy determinism metric (score variance
+across identical runs) is still available via `--metric variance`.
 
-Compares spanIQ against competitor evaluators on the same datasets, measuring
-score variance across N identical runs and (for the successor) accuracy at
-catching bad outputs.
-
-For the full methodology — what is and isn't measured, datasets, metric
-formulas, cost model, reproduction steps, and the fairness statement — see
-[BENCHMARK_METHODOLOGY.md](../BENCHMARK_METHODOLOGY.md) in the repo root.
+For the full trust document — question, positive class, datasets, the fairness
+threshold rule, reproduction steps, results, and the fairness statement — see
+**[BENCHMARK_ACCURACY.md](../BENCHMARK_ACCURACY.md)** in the repo root. The
+superseded determinism benchmark lives in
+[BENCHMARK_METHODOLOGY.md](../BENCHMARK_METHODOLOGY.md). The contract both obey is
+`docs/plans/benchmark_v2_accuracy.md`.
 
 ## Running
 
 ```bash
-spaniq benchmark --tool spaniq --runs 5
-spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 3
+# accuracy (default) — spaniq-only needs no API key
+spaniq benchmark --tool spaniq --runs 5 --metric accuracy
+spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 3 --metric accuracy
+
+# legacy determinism / variance
+spaniq benchmark --tool spaniq --runs 5 --metric variance
+
 spaniq benchmark --setup    # download full HF datasets
 ```
+
+Datasets are labeled good/bad by `benchmarks/datasets/build_labeled.py` from the
+immutable `*_seed.jsonl` sources; see `benchmarks/datasets/LABELING.md`.
 
 Competitor runners need `GROQ_API_KEY`. Missing deps or key are skipped
 gracefully (the CLI prints `skipping <tool>: ...` and continues).
 
-The benchmark runner tests run without any API key — they assert the
-graceful-skip path and the score parser. Run them with:
+The benchmark tests run without any API key — they assert the graceful-skip path,
+the score parser, and the accuracy metrics / calibration / reporting on synthetic
+predictions. Run them with:
 
 ```bash
-python -m pytest tests/test_benchmark_runners.py -q
+python -m pytest tests/test_benchmark_runners.py tests/test_benchmark_metrics.py \
+  tests/test_benchmark_calibrate.py tests/test_benchmark_report_accuracy.py -q
 ```
 
 ## Runners
 
-| Tool       | Method                                    | Dataset        | Deterministic |
-|------------|-------------------------------------------|----------------|---------------|
-| `spaniq`   | semantic similarity, no LLM               | any            | yes (0.0000)  |
-| `groq`     | Groq LLM-as-judge, 1-10 scale             | qa_factual     | no            |
-| `deepeval` | G-Eval correctness via Groq               | qa_factual     | no            |
-| `ragas`    | v0.4 collections Faithfulness via Groq    | rag_retrieval  | no            |
-| `langfuse` | Langfuse-style LLM-as-judge via Groq      | qa_factual     | no            |
+Each runner exposes a `run_*_predictions` function returning a `LabeledResult`
+(per-item predictions for accuracy) and a legacy `run_*_eval` (variance). The
+good/bad label always comes from the dataset, never the tool.
+
+| Tool       | Method                                    | Dataset        | Cost / determinism |
+|------------|-------------------------------------------|----------------|--------------------|
+| `spaniq`   | semantic similarity, no LLM               | any            | $0, det. by construction |
+| `groq`     | Groq LLM-as-judge, 1-10 scale             | any            | paid, usually det. at temp 0 |
+| `deepeval` | G-Eval correctness via Groq               | any            | paid, usually det. at temp 0 |
+| `ragas`    | v0.4 collections Faithfulness via Groq    | rag_retrieval  | paid, usually det. at temp 0 |
+| `langfuse` | Langfuse-style LLM-as-judge via Groq      | any            | paid, usually det. at temp 0 |
 
 ## Notes on the runners
 

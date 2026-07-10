@@ -1,15 +1,18 @@
-# Benchmark Methodology
+# Benchmark Methodology (determinism — superseded)
 
-> **Status note (being superseded).** This document describes the *determinism*
-> benchmark. A live run has since shown that LLM judges are frequently
+> **Superseded by the accuracy benchmark.** This document describes the
+> *determinism* benchmark. A live run showed that LLM judges are frequently
 > deterministic too (the Groq judge scored std dev 0.0000 on all three datasets
 > at `temperature=0`), so the "LLM judges produce different scores every run"
-> framing is not supported by the data and is being replaced. The determinism
-> benchmark is retained here as a record, with its Section 8 tables updated to
-> the **actual** committed results rather than `[PENDING]`. The successor is an
-> *accuracy* benchmark (precision / recall / F1 on labeled good-vs-bad outputs);
-> see `docs/plans/benchmark_v2_accuracy.md` for the contract. Read Section 8 and
-> Section 10 together — the numbers stand, the headline does not.
+> framing is not supported by the data. It is retained here as a historical
+> record, with its Section 8 tables updated to the **actual** committed results
+> rather than `[PENDING]`.
+>
+> **The primary benchmark is now accuracy** — precision / recall / F1 / AUC on
+> labeled good-vs-bad outputs. See **[`BENCHMARK_ACCURACY.md`](BENCHMARK_ACCURACY.md)**
+> for the trust document and results, and `docs/plans/benchmark_v2_accuracy.md`
+> for the contract. The durable, true facts from this benchmark carry over: spanIQ
+> is deterministic **and $0/trace by construction** because it makes no LLM call.
 
 This document describes exactly how the spanIQ determinism benchmark is run, what it measures, what it deliberately does not measure, and how anyone can reproduce the numbers themselves.
 
@@ -43,11 +46,16 @@ This is the most important section. The claim is narrow on purpose.
 
 The point of this framing: here is what the numbers prove and here is the boundary. A deterministic statistical metric and an LLM judge measure different things — this benchmark compares their *stability*, not their *insight*. See Section 10 for where each kind of tool is the right choice.
 
-## 2. The claim
+## 2. The claim (as originally stated — the second half is now known false)
 
-> spanIQ produces identical scores on identical inputs, every time, at $0 cost. LLM-as-judge tools produce different scores on every run.
+> ~~spanIQ produces identical scores on identical inputs, every time, at $0 cost. LLM-as-judge tools produce different scores on every run.~~
 
-This benchmark exists to let you verify that claim yourself. The determinism half is provable from a single run with no API key (Section 7). The variance half requires running the LLM-judge tools against a real model.
+The first sentence holds (Section 7). The second does **not**: the live run in
+Section 8 shows LLM judges are frequently deterministic at `temperature=0`. The
+supportable claim is now: *spanIQ is deterministic and $0/trace by construction;
+LLM judges are deterministic only conditionally and are never free.* Accuracy —
+not variance — is the axis that actually distinguishes the tools; see
+[`BENCHMARK_ACCURACY.md`](BENCHMARK_ACCURACY.md).
 
 ## 3. Tools benchmarked
 

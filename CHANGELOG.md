@@ -6,8 +6,8 @@
 
 - **OTelCollector** — embedded OTLP/gRPC + HTTP receiver that maps OTel GenAI semantic convention spans to spanIQ `Trace` objects. Accepts both GenAI semconv (auto-mapped) and generic `spaniq.*` attribute spans. `spaniq collect-otel --baseline <name>` starts the receiver.
 - **Streamlit dashboard** — local dashboard with 4 pages: Overview (health badges, KPIs), Drift Timeline (interactive Plotly charts), Attribution (V3 cascade visualization), Alert Log (filterable table with CSV export). `spaniq dashboard` launches it.
-- **Determinism benchmark** — reproducible benchmark suite comparing spanIQ vs Groq LLM judge / deepeval / ragas on variance, cost, and speed. `spaniq benchmark --tool spaniq,groq --runs 5`.
-- **Benchmark datasets** — 3 JSONL datasets committed to the repo (TriviaQA-style QA, summarization, RAG retrieval) with full `fetch.py` for downloading real HuggingFace data.
+- **Accuracy benchmark** — reproducible suite comparing spanIQ vs Groq LLM judge / deepeval / ragas / langfuse on precision / recall / F1 / AUC at catching bad outputs, with a calibrated threshold rule and a per-item audit trail. `spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 5 --metric accuracy`. The legacy determinism metric remains via `--metric variance`. See `BENCHMARK_ACCURACY.md`.
+- **Labeled benchmark datasets** — good/bad JSONL datasets (QA, summarization, RAG retrieval) with a documented failure taxonomy, generated from immutable `*_seed.jsonl` sources by `build_labeled.py`; provenance in `datasets/LABELING.md`.
 - **`alerts` SQLite table** — `TimelineStore` now creates and writes to an `alerts` table (in addition to JSONL). `AlertEngine` dual-writes when `db_path` is set. Dashboard reads from this table.
 - **`record_alert` / `query_alerts` / `alert_count`** methods on `TimelineStore`.
 - Optional dependency groups: `otel`, `dashboard`, `benchmark`, `all`.
