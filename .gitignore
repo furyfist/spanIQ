@@ -8,6 +8,7 @@ dist/
 .pytest_cache/
 .ruff_cache/
 benchmarks/results/
+benchmarks/results_accuracy/run.log
 .deepeval/
 .env
 

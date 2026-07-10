@@ -1,0 +1,13 @@
+tool,dataset,threshold,precision,recall,f1,roc_auc,avg_precision,n_calibration,n_test,score_std
+spaniq,qa_factual,0.6133,0.8056,0.9667,0.8788,0.8567,0.85,50,50,0.0
+groq-llm-judge,qa_factual,0.55,1.0,1.0,1.0,1.0,1.0,50,50,0.0
+deepeval,qa_factual,0.3667,1.0,0.8333,0.9091,0.9708,0.9784,50,50,0.0681
+langfuse,qa_factual,0.5,0.6122,1.0,0.7595,0.525,0.6455,50,50,0.0024
+spaniq,summarization,0.982,1.0,1.0,1.0,1.0,1.0,8,8,0.0
+groq-llm-judge,summarization,0.5,0.5,1.0,0.6667,0.5,0.6917,8,8,0.0
+deepeval,summarization,0.5,0.5,1.0,0.6667,0.5,0.6917,8,8,0.0
+langfuse,summarization,0.5,0.5,1.0,0.6667,0.5,0.6917,8,8,0.0
+spaniq,rag_retrieval,0.9973,1.0,1.0,1.0,1.0,1.0,8,8,0.0
+groq-llm-judge,rag_retrieval,0.5833,0.5,1.0,0.6667,0.5,0.6917,8,8,0.0147
+deepeval,rag_retrieval,0.5,0.5,1.0,0.6667,0.5,0.6917,8,8,0.0
+langfuse,rag_retrieval,0.5,0.5,1.0,0.6667,0.5,0.6917,8,8,0.0
