@@ -81,3 +81,8 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra --strict-markers"
+# `benchmarks/` is a repo-local package, not installed into site-packages by the
+# wheel (which ships only src/spaniq). Running `python -m pytest` happens to put
+# the CWD on sys.path, but the bare `pytest` console script does not — so the
+# benchmark tests fail to import under CI without this.
+pythonpath = ["."]
