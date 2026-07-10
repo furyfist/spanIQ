@@ -12,3 +12,6 @@ benchmarks/results_accuracy/run.log
 .deepeval/
 .env
 
+# generated at runtime by the demos / tests
+*.db
+
