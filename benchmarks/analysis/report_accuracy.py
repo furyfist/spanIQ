@@ -9,12 +9,12 @@ Consumes the per-tool LabeledResults, applies the calibration rule, and writes:
 
 The determinism std dev is still reported, as a secondary column, honestly.
 """
+
 from __future__ import annotations
 
 import csv
 import pathlib
 
-from benchmarks.analysis import metrics as m
 from benchmarks.analysis.calibrate import AccuracyReport, evaluate_accuracy
 from benchmarks.runners.spaniq_runner import LabeledResult
 
@@ -27,22 +27,31 @@ def print_table(reports: list[AccuracyReport]) -> None:
     try:
         from rich.console import Console
         from rich.table import Table
+
         table = Table(title="spanIQ Accuracy Benchmark (positive class = bad)")
         for c in ["Tool", "Dataset", "Thr", "Precision", "Recall", "F1", "AUC", "AP", "Std"]:
             table.add_column(c, justify="left" if c in ("Tool", "Dataset") else "right")
         for r in reports:
             row = r.as_row()
             table.add_row(
-                row["tool"], row["dataset"], f"{row['threshold']}",
-                f"{row['precision']}", f"{row['recall']}", f"{row['f1']}",
-                f"{row['roc_auc']}", f"{row['avg_precision']}", f"{row['score_std']}",
+                row["tool"],
+                row["dataset"],
+                f"{row['threshold']}",
+                f"{row['precision']}",
+                f"{row['recall']}",
+                f"{row['f1']}",
+                f"{row['roc_auc']}",
+                f"{row['avg_precision']}",
+                f"{row['score_std']}",
             )
         Console().print(table)
     except ImportError:
         for r in reports:
             row = r.as_row()
-            print(f"{row['tool']:16s} {row['dataset']:14s} "
-                  f"P={row['precision']} R={row['recall']} F1={row['f1']} AUC={row['roc_auc']}")
+            print(
+                f"{row['tool']:16s} {row['dataset']:14s} "
+                f"P={row['precision']} R={row['recall']} F1={row['f1']} AUC={row['roc_auc']}"
+            )
 
 
 def save_accuracy_csv(reports: list[AccuracyReport], out_dir: pathlib.Path) -> pathlib.Path:
@@ -68,8 +77,17 @@ def save_predictions_csv(results: list[LabeledResult], out_dir: pathlib.Path) ->
             labels = res.true_labels
             scores = res.mean_scores
             kinds = [p.failure_kind for p in res.runs[0]] if res.runs else []
-            for i, (lbl, sc) in enumerate(zip(labels, scores)):
-                writer.writerow([res.tool, res.dataset, i, lbl, kinds[i] if i < len(kinds) else "", round(sc, 6)])
+            for i, (lbl, sc) in enumerate(zip(labels, scores, strict=True)):
+                writer.writerow(
+                    [
+                        res.tool,
+                        res.dataset,
+                        i,
+                        lbl,
+                        kinds[i] if i < len(kinds) else "",
+                        round(sc, 6),
+                    ]
+                )
     return path
 
 

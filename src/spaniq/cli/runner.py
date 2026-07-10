@@ -203,6 +203,7 @@ def _pipeline_run(args: argparse.Namespace) -> None:
     report = pm.run(max_traces=args.max_traces)
     if report.online_alarms:
         from rich.console import Console
+
         Console().print(f"[yellow]online alarms:[/yellow] {report.online_alarms}")
 
 
@@ -227,11 +228,14 @@ def _pipeline_status(args: argparse.Namespace) -> None:
             if not rows:
                 continue
             import numpy as np
+
             scores = [r.score for r in rows]
             mean = float(np.mean(scores))
             trend = float(np.polyfit(range(len(scores)), scores, 1)[0]) if len(scores) >= 2 else 0.0
             pass_rate = sum(1 for r in rows if r.passed) / len(rows)
-            table.add_row(comp, metric[:20], f"{mean:.4f}", f"{trend:+.6f}", f"{pass_rate*100:.1f}%")
+            table.add_row(
+                comp, metric[:20], f"{mean:.4f}", f"{trend:+.6f}", f"{pass_rate * 100:.1f}%"
+            )
     console.print(table)
 
 
@@ -240,7 +244,6 @@ def _attribute(args: argparse.Namespace) -> None:
     from spaniq.attribution.report import (
         attribution_to_dict,
         print_attribution,
-        save_attribution_json,
         save_attribution_png,
     )
     from spaniq.monitor.timeline_store import TimelineStore
@@ -268,6 +271,7 @@ def _attribute(args: argparse.Namespace) -> None:
 
     if args.as_json:
         import json as _json
+
         print(_json.dumps(attribution_to_dict(result), indent=2))
     else:
         print_attribution(result)
@@ -282,6 +286,7 @@ def _attribute(args: argparse.Namespace) -> None:
             last_n=args.last,
         )
         from rich.console import Console
+
         Console().print(f"[green]saved:[/green] {args.export}")
 
 
@@ -303,8 +308,8 @@ def _collect_otel(args: argparse.Namespace) -> None:
     print("Press Ctrl+C to stop.\n")
 
     if args.store_only:
-        from spaniq.monitor.timeline_store import TimelineStore
-        store = TimelineStore(args.db)
+        # FIXME: --store-only currently only prints received traces; it does not
+        # persist them. Wiring the collector output into a TimelineStore is the fix.
         try:
             for trace in collector.collect():
                 print(f"  trace received: {trace.trace_id[:8]}…")
@@ -314,6 +319,7 @@ def _collect_otel(args: argparse.Namespace) -> None:
         return
 
     from spaniq.monitor.monitor import Monitor
+
     monitor = Monitor(
         baseline_name=args.baseline,
         collector=collector,
@@ -331,19 +337,29 @@ def _collect_otel(args: argparse.Namespace) -> None:
 def _dashboard_launch(args: argparse.Namespace) -> None:
     try:
         import importlib.util
+
         if importlib.util.find_spec("streamlit") is None:
             raise ImportError
     except ImportError:
-        print("error: streamlit not installed — run: pip install spaniq[dashboard]", file=sys.stderr)
+        print(
+            "error: streamlit not installed — run: pip install spaniq[dashboard]", file=sys.stderr
+        )
         sys.exit(1)
 
     import pathlib
+
     app_path = pathlib.Path(__file__).parent.parent / "dashboard" / "app.py"
     cmd = [
-        sys.executable, "-m", "streamlit", "run", str(app_path),
-        "--server.port", str(args.port),
+        sys.executable,
+        "-m",
+        "streamlit",
+        "run",
+        str(app_path),
+        "--server.port",
+        str(args.port),
         "--",
-        "--db", args.db,
+        "--db",
+        args.db,
     ]
     print(f"Launching spanIQ dashboard at http://localhost:{args.port}")
     sys.exit(subprocess.call(cmd))
@@ -494,8 +510,12 @@ def _build_parser() -> argparse.ArgumentParser:
     attr_p.add_argument("--metrics", default=None, help="comma-separated metric names")
     attr_p.add_argument("--json", action="store_true", dest="as_json", help="output JSON")
     attr_p.add_argument("--export", default=None, help="save PNG chart to this path")
-    attr_p.add_argument("--penalty", type=float, default=None, help="PELT penalty (default: BIC = 3*log(n))")
-    attr_p.add_argument("--warmup", type=int, default=20, help="warmup traces to add back to PELT indices")
+    attr_p.add_argument(
+        "--penalty", type=float, default=None, help="PELT penalty (default: BIC = 3*log(n))"
+    )
+    attr_p.add_argument(
+        "--warmup", type=int, default=20, help="warmup traces to add back to PELT indices"
+    )
 
     # ── collect-otel ──────────────────────────────────────────────────────────
     otel_p = sub.add_parser("collect-otel", help="receive OTel spans via OTLP and run monitoring")
@@ -503,8 +523,12 @@ def _build_parser() -> argparse.ArgumentParser:
     otel_p.add_argument("--db", default="spaniq.db")
     otel_p.add_argument("--grpc-port", type=int, default=4317, dest="grpc_port")
     otel_p.add_argument("--http-port", type=int, default=4318, dest="http_port")
-    otel_p.add_argument("--store-only", action="store_true", dest="store_only",
-                        help="collect and store traces without running metric monitoring")
+    otel_p.add_argument(
+        "--store-only",
+        action="store_true",
+        dest="store_only",
+        help="collect and store traces without running metric monitoring",
+    )
     otel_p.add_argument("--assembly-timeout", type=float, default=5.0, dest="assembly_timeout")
     otel_p.add_argument("--alert-after", type=int, default=3, dest="alert_after")
     otel_p.add_argument("--alerts-path", default="alerts.jsonl", dest="alerts_path")
@@ -516,17 +540,29 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # ── benchmark ─────────────────────────────────────────────────────────────
     bench_p = sub.add_parser("benchmark", help="run the accuracy benchmark suite")
-    bench_p.add_argument("--tool", default="spaniq",
-                         help="comma-separated tools to benchmark: spaniq,deepeval,ragas,groq,langfuse")
-    bench_p.add_argument("--dataset", default="all",
-                         help="dataset to use: qa_factual, summarization, rag_retrieval, all")
+    bench_p.add_argument(
+        "--tool",
+        default="spaniq",
+        help="comma-separated tools to benchmark: spaniq,deepeval,ragas,groq,langfuse",
+    )
+    bench_p.add_argument(
+        "--dataset",
+        default="all",
+        help="dataset to use: qa_factual, summarization, rag_retrieval, all",
+    )
     bench_p.add_argument("--runs", type=int, default=5, help="number of identical runs per tool")
-    bench_p.add_argument("--metric", default="accuracy", choices=["accuracy", "variance"],
-                         help="accuracy (precision/recall/F1, default) or legacy variance")
-    bench_p.add_argument("--setup", action="store_true",
-                         help="download and cache benchmark datasets, then exit")
-    bench_p.add_argument("--output", default="benchmarks/results",
-                         help="directory to write results")
+    bench_p.add_argument(
+        "--metric",
+        default="accuracy",
+        choices=["accuracy", "variance"],
+        help="accuracy (precision/recall/F1, default) or legacy variance",
+    )
+    bench_p.add_argument(
+        "--setup", action="store_true", help="download and cache benchmark datasets, then exit"
+    )
+    bench_p.add_argument(
+        "--output", default="benchmarks/results", help="directory to write results"
+    )
 
     # ── demo ──────────────────────────────────────────────────────────────────
     demo_p = sub.add_parser("demo", help="run reproducible replay demos")
@@ -612,17 +648,21 @@ def main() -> None:
         offline = getattr(args, "offline", False)
         if args.demo_command == "prompt-injection":
             from spaniq.demos.prompt_injection import run
+
             run(offline=offline)
         elif args.demo_command == "model-swap":
             from spaniq.demos.model_swap import run
+
             run(offline=offline)
         elif args.demo_command == "rag-breakage":
             from spaniq.demos.rag_breakage import run
+
             run(offline=offline)
         elif args.demo_command == "run-all":
             from spaniq.demos.model_swap import run as run_ms
             from spaniq.demos.prompt_injection import run as run_pi
             from spaniq.demos.rag_breakage import run as run_rag
+
             run_pi(offline=offline)
             run_ms(offline=offline)
             run_rag(offline=offline)

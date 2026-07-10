@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import asdict
-from pathlib import Path
 
-import numpy as np
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -18,7 +15,6 @@ console = Console()
 
 def print_attribution(result: AttributionResult) -> None:
     """Print the attribution verdict to the terminal using rich."""
-    title = Text("degradation event detected", style="bold red")
     if result.root_cause is None:
         console.print(Panel("no degradation detected", title="spanIQ attribution", style="green"))
         return
@@ -40,7 +36,9 @@ def print_attribution(result: AttributionResult) -> None:
         )
 
     for cb in result.cascade:
-        lag = cb.break_trace_index - (result.root_cause.break_trace_index if result.root_cause else 0)
+        lag = cb.break_trace_index - (
+            result.root_cause.break_trace_index if result.root_cause else 0
+        )
         label = Text(f"cascade, +{lag}", style="yellow")
         table.add_row(
             cb.component,
@@ -92,7 +90,6 @@ def save_attribution_png(
     last_n: int = 500,
 ) -> None:
     import matplotlib.pyplot as plt
-    import matplotlib.ticker as ticker
 
     n = len(components)
     fig, axes = plt.subplots(n, 1, figsize=(12, 3 * n), sharex=True)
@@ -105,8 +102,10 @@ def save_attribution_png(
     for cb in result.cascade:
         all_breaks[cb.component] = cb.break_trace_index
 
-    for ax, component in zip(axes, components):
-        series = timeline.query_series(component=component, metric_name=primary_metric, last_n=last_n)
+    for ax, component in zip(axes, components, strict=True):
+        series = timeline.query_series(
+            component=component, metric_name=primary_metric, last_n=last_n
+        )
         xs = list(range(len(series)))
         color = "steelblue"
         if component == (result.root_cause.component if result.root_cause else None):
@@ -117,9 +116,12 @@ def save_attribution_png(
 
         if component in all_breaks and all_breaks[component] is not None:
             bp = all_breaks[component]
-            lc = "red" if component == (result.root_cause.component if result.root_cause else None) else "orange"
-            ax.axvline(x=bp, color=lc, linestyle="--", linewidth=1.5,
-                       label=f"break @{bp}")
+            lc = (
+                "red"
+                if component == (result.root_cause.component if result.root_cause else None)
+                else "orange"
+            )
+            ax.axvline(x=bp, color=lc, linestyle="--", linewidth=1.5, label=f"break @{bp}")
             ax.legend(fontsize=7)
 
     axes[-1].set_xlabel("trace index")

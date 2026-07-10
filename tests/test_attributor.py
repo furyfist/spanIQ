@@ -1,24 +1,30 @@
 """Tests for the Attributor ranking logic."""
+
 from __future__ import annotations
 
 import numpy as np
-import pytest
 
-from spaniq.attribution.attributor import attribute, AttributionResult
+from spaniq.attribution.attributor import attribute
 from spaniq.monitor.timeline_store import TimelineStore
 
 
 def _populate_store(tmp_path, component_scores: dict[str, list[float]], metric="TestMetric"):
     store = TimelineStore(str(tmp_path / "test.db"))
     from datetime import datetime, timedelta, timezone
+
     base = datetime(2024, 1, 1, tzinfo=timezone.utc)
     for comp, scores in component_scores.items():
         for i, score in enumerate(scores):
             ts = (base + timedelta(seconds=i)).isoformat()
             store.record(
-                trace_id=f"{comp}-{i}", baseline_id="b1", metric_name=metric,
-                score=score, threshold=0.5, passed=score >= 0.5,
-                timestamp=ts, component=comp,
+                trace_id=f"{comp}-{i}",
+                baseline_id="b1",
+                metric_name=metric,
+                score=score,
+                threshold=0.5,
+                passed=score >= 0.5,
+                timestamp=ts,
+                component=comp,
             )
     return store
 
@@ -34,11 +40,14 @@ def test_root_cause_identified(tmp_path):
     retrieval = _make_scores(break_at=80)
     generation = _make_scores(break_at=90)
     healthy = list(np.random.default_rng(5).normal(0.8, 0.03, 200))
-    store = _populate_store(tmp_path, {
-        "retrieval": retrieval,
-        "generation": generation,
-        "healthy_comp": healthy,
-    })
+    store = _populate_store(
+        tmp_path,
+        {
+            "retrieval": retrieval,
+            "generation": generation,
+            "healthy_comp": healthy,
+        },
+    )
     result = attribute(store, ["retrieval", "generation", "healthy_comp"], ["TestMetric"])
     assert result.root_cause is not None
     assert result.root_cause.component == "retrieval"
@@ -99,9 +108,10 @@ def test_two_independent_metrics(tmp_path):
     scores_m1 = _make_scores(break_at=80)
     scores_m2 = _make_scores(break_at=90, seed=1)
     from datetime import datetime, timedelta, timezone
+
     store = TimelineStore(str(tmp_path / "test.db"))
     base = datetime(2024, 1, 1, tzinfo=timezone.utc)
-    for i, (s1, s2) in enumerate(zip(scores_m1, scores_m2)):
+    for i, (s1, s2) in enumerate(zip(scores_m1, scores_m2, strict=True)):
         ts = (base + timedelta(seconds=i)).isoformat()
         store.record("t", "b", "M1", s1, 0.5, s1 >= 0.5, ts, component="comp")
         store.record("t", "b", "M2", s2, 0.5, s2 >= 0.5, ts, component="comp")

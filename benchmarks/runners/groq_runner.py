@@ -3,17 +3,20 @@
 Uses Groq's LLaMA to judge output quality on a 1-10 scale.
 Requires GROQ_API_KEY env var.
 """
+
 from __future__ import annotations
 
-import json
 import os
 import pathlib
 import time
 
 from benchmarks.runners.spaniq_runner import (
-    BenchmarkResult, LabeledResult, RunResult, _load_dataset, predictions_from_scores,
+    BenchmarkResult,
+    LabeledResult,
+    RunResult,
+    _load_dataset,
+    predictions_from_scores,
 )
-
 
 _JUDGE_PROMPT = """\
 You are an impartial evaluator. Score the following model output on a scale from 1 to 10
@@ -26,17 +29,18 @@ Model output: {output}
 Respond with ONLY a single integer from 1 to 10. No explanation."""
 
 
-def run_groq_eval(dataset_path: str | pathlib.Path, n_runs: int = 5,
-                  model: str = "llama-3.3-70b-versatile") -> BenchmarkResult:
+def run_groq_eval(
+    dataset_path: str | pathlib.Path, n_runs: int = 5, model: str = "llama-3.3-70b-versatile"
+) -> BenchmarkResult:
     """Run Groq LLM-as-judge evaluation N times on the dataset."""
     try:
         from groq import Groq
-    except ImportError:
-        raise ImportError("groq SDK not installed — run: pip install spaniq[groq]")
+    except ImportError as exc:
+        raise ImportError("groq SDK not installed — run: pip install spaniq[groq]") from exc
 
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        raise EnvironmentError("GROQ_API_KEY not set in environment")
+        raise OSError("GROQ_API_KEY not set in environment")
 
     client = Groq(api_key=api_key)
     path = pathlib.Path(dataset_path)
@@ -75,7 +79,9 @@ def run_groq_eval(dataset_path: str | pathlib.Path, n_runs: int = 5,
 
         elapsed = time.perf_counter() - start
         result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=cost))
-        print(f"    groq run {run_idx + 1}/{n_runs}: mean={sum(scores)/len(scores):.3f} t={elapsed:.1f}s")
+        print(
+            f"    groq run {run_idx + 1}/{n_runs}: mean={sum(scores) / len(scores):.3f} t={elapsed:.1f}s"
+        )
 
     return result
 
@@ -100,17 +106,18 @@ def _score_row(client, model, row) -> float:
         return 0.5
 
 
-def run_groq_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5,
-                         model: str = "llama-3.3-70b-versatile") -> LabeledResult:
+def run_groq_predictions(
+    dataset_path: str | pathlib.Path, n_runs: int = 5, model: str = "llama-3.3-70b-versatile"
+) -> LabeledResult:
     """Groq LLM-as-judge on a labeled dataset, returning per-item predictions."""
     try:
         from groq import Groq
-    except ImportError:
-        raise ImportError("groq SDK not installed — run: pip install spaniq[groq]")
+    except ImportError as exc:
+        raise ImportError("groq SDK not installed — run: pip install spaniq[groq]") from exc
 
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        raise EnvironmentError("GROQ_API_KEY not set in environment")
+        raise OSError("GROQ_API_KEY not set in environment")
 
     client = Groq(api_key=api_key)
     path = pathlib.Path(dataset_path)

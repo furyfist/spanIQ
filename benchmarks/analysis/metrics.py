@@ -8,6 +8,7 @@ bad": the decision is `predicted = bad if score < threshold else good`.
 No third-party dependency — the AUC and average-precision implementations are
 small and self-contained so the benchmark stays reproducible.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -35,7 +36,7 @@ def predict(score: float, threshold: float) -> str:
 
 def confusion(true_labels: list[str], scores: list[float], threshold: float) -> Confusion:
     tp = fp = fn = tn = 0
-    for true, score in zip(true_labels, scores):
+    for true, score in zip(true_labels, scores, strict=True):
         pred = predict(score, threshold)
         if true == POSITIVE and pred == POSITIVE:
             tp += 1
@@ -68,8 +69,8 @@ def accuracy(c: Confusion) -> float:
 def _pos_scores(true_labels: list[str], scores: list[float]) -> tuple[list[float], list[float]]:
     """Split judge scores by true label. Because low score => bad (positive), the
     'positive score' used for ranking is (1 - score): high means more bad-like."""
-    pos = [1.0 - s for t, s in zip(true_labels, scores) if t == POSITIVE]
-    neg = [1.0 - s for t, s in zip(true_labels, scores) if t == NEGATIVE]
+    pos = [1.0 - s for t, s in zip(true_labels, scores, strict=True) if t == POSITIVE]
+    neg = [1.0 - s for t, s in zip(true_labels, scores, strict=True) if t == NEGATIVE]
     return pos, neg
 
 
@@ -99,7 +100,7 @@ def average_precision(true_labels: list[str], scores: list[float]) -> float:
     each true-positive hit.
     """
     ranked = sorted(
-        ((1.0 - s, t) for t, s in zip(true_labels, scores)),
+        ((1.0 - s, t) for t, s in zip(true_labels, scores, strict=True)),
         key=lambda x: x[0],
         reverse=True,
     )
@@ -107,10 +108,8 @@ def average_precision(true_labels: list[str], scores: list[float]) -> float:
     if n_pos == 0:
         return float("nan")
     tp = 0
-    seen = 0
     ap = 0.0
-    for _, true in ranked:
-        seen += 1
+    for seen, (_, true) in enumerate(ranked, start=1):
         if true == POSITIVE:
             tp += 1
             ap += tp / seen  # precision at this recall step
@@ -127,7 +126,8 @@ def best_f1_threshold(true_labels: list[str], scores: list[float]) -> float:
     if not uniq:
         return 0.5
     candidates = [uniq[0] - 1e-6, uniq[-1] + 1e-6]
-    for a, b in zip(uniq, uniq[1:]):
+    # pairwise sliding window: the shorter uniq[1:] intentionally ends it early
+    for a, b in zip(uniq, uniq[1:], strict=False):
         candidates.append((a + b) / 2)
     best_t, best = uniq[0], -1.0
     for t in candidates:

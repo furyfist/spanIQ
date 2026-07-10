@@ -1,4 +1,5 @@
 """spanIQ benchmark runner — deterministic, zero-cost evaluation."""
+
 from __future__ import annotations
 
 import json
@@ -22,9 +23,10 @@ class Prediction:
     predicted label is applied later with a calibrated threshold, so the runner
     stores the raw score and never bakes in a cutoff.
     """
+
     item_id: int
-    true_label: str          # "good" | "bad"
-    score: float             # 0-1, higher = looks more correct
+    true_label: str  # "good" | "bad"
+    score: float  # 0-1, higher = looks more correct
     failure_kind: str | None = None
 
 
@@ -32,6 +34,7 @@ class Prediction:
 class LabeledResult:
     """Accuracy-oriented result: predictions per run, plus determinism as a
     secondary stat. One entry in `runs` per identical repeat of the eval."""
+
     tool: str
     dataset: str
     runs: list[list[Prediction]] = field(default_factory=list)
@@ -49,10 +52,7 @@ class LabeledResult:
         if not self.runs:
             return []
         n = len(self.runs[0])
-        return [
-            sum(run[i].score for run in self.runs) / len(self.runs)
-            for i in range(n)
-        ]
+        return [sum(run[i].score for run in self.runs) / len(self.runs) for i in range(n)]
 
     @property
     def score_variance(self) -> float:
@@ -65,7 +65,7 @@ class LabeledResult:
 
     @property
     def score_std(self) -> float:
-        return self.score_variance ** 0.5
+        return self.score_variance**0.5
 
 
 @dataclass
@@ -89,7 +89,7 @@ class BenchmarkResult:
 
     @property
     def score_std(self) -> float:
-        return self.score_variance ** 0.5
+        return self.score_variance**0.5
 
     @property
     def mean_time_sec(self) -> float:
@@ -100,7 +100,7 @@ class BenchmarkResult:
         return sum(r.cost_usd for r in self.runs)
 
 
-def predictions_from_scores(rows: list[dict], scores: list[float]) -> list["Prediction"]:
+def predictions_from_scores(rows: list[dict], scores: list[float]) -> list[Prediction]:
     """Attach ground-truth labels to a run's per-item scores.
 
     Shared by every runner so the good/bad label always comes from the dataset,
@@ -113,7 +113,7 @@ def predictions_from_scores(rows: list[dict], scores: list[float]) -> list["Pred
             score=score,
             failure_kind=row.get("failure_kind"),
         )
-        for i, (row, score) in enumerate(zip(rows, scores))
+        for i, (row, score) in enumerate(zip(rows, scores, strict=True))
     ]
 
 
@@ -129,8 +129,8 @@ def _load_dataset(path: pathlib.Path) -> list[dict]:
 
 def run_spaniq_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> BenchmarkResult:
     """Run spanIQ metrics on the dataset N times and measure variance and speed."""
-    from spaniq.core.test_case import LLMTestCase
     from spaniq.core.evaluate import evaluate
+    from spaniq.core.test_case import LLMTestCase
     from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
 
     path = pathlib.Path(dataset_path)
@@ -160,7 +160,7 @@ def run_spaniq_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benchm
     return result
 
 
-def run_spaniq_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5) -> "LabeledResult":
+def run_spaniq_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5) -> LabeledResult:
     """Score a labeled dataset with spanIQ and return per-item predictions.
 
     Uses the same deterministic embedding cosine metric, but reads each row's
@@ -168,8 +168,8 @@ def run_spaniq_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5) ->
     The threshold that turns scores into decisions is chosen later (Phase 7),
     so nothing about accuracy is baked in here. Cost stays $0.00 — no LLM call.
     """
-    from spaniq.core.test_case import LLMTestCase
     from spaniq.core.evaluate import evaluate
+    from spaniq.core.test_case import LLMTestCase
     from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
 
     path = pathlib.Path(dataset_path)
@@ -191,12 +191,14 @@ def run_spaniq_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5) ->
         preds: list[Prediction] = []
         for i, tc_result in enumerate(eval_result.test_case_results):
             score = tc_result.metric_results[0].score
-            preds.append(Prediction(
-                item_id=i,
-                true_label=rows[i].get("label", "good"),
-                score=score,
-                failure_kind=rows[i].get("failure_kind"),
-            ))
+            preds.append(
+                Prediction(
+                    item_id=i,
+                    true_label=rows[i].get("label", "good"),
+                    score=score,
+                    failure_kind=rows[i].get("failure_kind"),
+                )
+            )
         result.runs.append(preds)
 
     return result

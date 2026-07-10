@@ -1,4 +1,5 @@
 """Health badge component — colour-coded status per component."""
+
 from __future__ import annotations
 
 import streamlit as st
@@ -14,11 +15,11 @@ def health_color(score: float, threshold: float) -> str:
     return "red"
 
 
-def render_health_badge(component: str, metric: str, score: float,
-                         threshold: float, passed: bool) -> None:
+def render_health_badge(
+    component: str, metric: str, score: float, threshold: float, passed: bool
+) -> None:
     color = health_color(score, threshold)
     icon = {"green": "🟢", "yellow": "🟡", "red": "🔴"}[color]
-    label = "healthy" if passed else "drifting"
     st.metric(
         label=f"{icon} {component} — {metric[:20]}",
         value=f"{score:.4f}",
