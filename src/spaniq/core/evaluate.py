@@ -28,17 +28,16 @@ def evaluate(
     """Run all metrics on all test cases in parallel. Deterministic. Zero API cost."""
     start = time.perf_counter()
 
-    tc_futures: dict = {}
+    # A list, not a dict keyed by id(tc): the same test case object passed twice
+    # must produce two results, in input order.
+    tc_futures: list = []
     with ThreadPoolExecutor(max_workers=max_workers) as pool:
         for tc in test_cases:
-            futures = []
-            for metric in metrics:
-                m = copy.deepcopy(metric)
-                futures.append(pool.submit(_run_single, m, tc))
-            tc_futures[id(tc)] = (tc, futures)
+            futures = [pool.submit(_run_single, copy.deepcopy(m), tc) for m in metrics]
+            tc_futures.append((tc, futures))
 
         test_case_results = []
-        for _tc_id, (tc, futures) in tc_futures.items():
+        for tc, futures in tc_futures:
             metric_results = [f.result() for f in futures]
             test_case_results.append(TestCaseResult(test_case=tc, metric_results=metric_results))
 
