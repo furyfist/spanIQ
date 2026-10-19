@@ -133,6 +133,7 @@ class TimelineStore:
         since: str | None = None,
         component: str | None = None,
         ascending: bool = False,
+        baseline_id: str | None = None,
     ) -> list[TimelineRow]:
         """Return the last_n rows for a metric.
 
@@ -147,7 +148,10 @@ class TimelineStore:
         if component is not None:
             sql += " AND component = ?"
             params.append(component)
-        sql += " ORDER BY timestamp DESC LIMIT ?"
+        if baseline_id is not None:
+            sql += " AND baseline_id = ?"
+            params.append(baseline_id)
+        sql += " ORDER BY timestamp DESC, id DESC LIMIT ?"
         params.append(last_n)
 
         with self._conn() as conn:
@@ -181,10 +185,23 @@ class TimelineStore:
         )
         return [r.score for r in rows]
 
-    def components(self) -> list[str]:
+    def components(self, pipeline: str | None = None) -> list[str]:
+        """Distinct components, optionally only those of one PipelineMonitor pipeline."""
+        sql = "SELECT DISTINCT component FROM timeline"
+        params: list = []
+        if pipeline is not None:
+            sql += " WHERE baseline_id = ? || '/' || component"
+            params.append(pipeline)
+        with self._conn() as conn:
+            rows = conn.execute(sql + " ORDER BY component", params).fetchall()
+        return [r[0] for r in rows]
+
+    def pipelines(self) -> list[str]:
+        """Names of pipelines PipelineMonitor has recorded (baseline_id "<pipeline>/<component>")."""
         with self._conn() as conn:
             rows = conn.execute(
-                "SELECT DISTINCT component FROM timeline ORDER BY component"
+                "SELECT DISTINCT substr(baseline_id, 1, length(baseline_id) - length(component) - 1) "
+                "FROM timeline WHERE baseline_id LIKE '%/' || component ORDER BY 1"
             ).fetchall()
         return [r[0] for r in rows]
 

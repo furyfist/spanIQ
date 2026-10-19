@@ -28,7 +28,7 @@ V3 uses CUSUM (online) and PELT (offline) — mature classical statistics — to
 
 Two-sided CUSUM (Page 1954). Updated per trace at stride intervals to reduce autocorrelation from rolling-window scoring. Gives fast alarms; the alarm index is recorded as detection latency metadata.
 
-Parameters: `k = 0.5 * baseline_sigma`, `h` calibrated empirically to ARL0 >= 500.
+Parameters: `PipelineMonitor` estimates the reference mean and sigma per (component, metric) from the first `cusum_calibration` (default 10) scored traces after warmup, then uses `k = 0.5 * sigma` and `h = cusum_h * sigma` (default `cusum_h = 5`). The offline validation in `validation/` calibrates `h` empirically to ARL0 >= 500.
 
 ## PELT (offline localization)
 
@@ -36,11 +36,11 @@ Exact segmentation via ruptures with RBF cost model (Killick et al. 2012). Runs 
 
 ## The autocorrelation trap
 
-Rolling-window scores are autocorrelated (consecutive scores share window members). Naive CUSUM on these series inflates false alarms. V3 mitigates with stride subsampling (default: stride = window_size // 2) and empirical h calibration on real normal series.
+Scores of consecutive traces are autocorrelated (similar inputs, shared context). Naive CUSUM on these series inflates false alarms. V3 mitigates with stride subsampling (default: every 10th scored trace) and empirical h calibration on real normal series. Every trace is scored against the component's frozen warmup baseline, not a rolling window, so slow drift is not absorbed into the reference.
 
 ## Cascade logic
 
-Changepoints are clustered within a proximity window (default: 10 traces). Within a cluster, the earliest component is the root-cause candidate; later components are cascade. Confidence = 0.6 * (broken_metrics / total_metrics) + 0.4 * (lead_gap / cluster_window). The report says "broke first" — never "caused" — because temporal precedence is not the same as causal inference.
+Changepoints are placed on a shared trace axis (each trace's position in arrival order, matched by trace id), so a component that skipped some traces or started later is not misaligned against the others. They are then clustered within a proximity window (default: 10 traces). Within a cluster, the earliest component is the root-cause candidate; later components are cascade. Confidence = 0.6 * (broken_metrics / total_metrics) + 0.4 * (lead_gap / cluster_window). The report says "broke first" — never "caused" — because temporal precedence is not the same as causal inference.
 
 ## Known resolution limits
 

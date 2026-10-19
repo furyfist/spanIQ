@@ -28,7 +28,6 @@ def test_e2e_cascade_attribution():
             pipeline_name="e2e-test",
             collector=collector,
             db_path=db_path,
-            window_size=20,
             warmup=20,
         )
         report = pm.run()

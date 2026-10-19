@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import time
-from collections import deque
 from dataclasses import dataclass, field
 
+import numpy as np
 from rich.console import Console
 
 from spaniq.attribution.changepoint.cusum import CusumState, cusum_update
@@ -21,10 +21,13 @@ from spaniq.monitor.trace import Trace
 console = Console()
 
 _WARMUP_DEFAULT = 20
-_WINDOW_DEFAULT = 20
 _CUSUM_STRIDE_DEFAULT = 10
+_CUSUM_CALIBRATION_DEFAULT = 10
 _CUSUM_K_FACTOR = 0.5
 _CUSUM_H_DEFAULT = 5.0
+# Floor for the calibrated score sigma, so a perfectly constant metric does not
+# make the first tiny wobble an alarm.
+_CUSUM_MIN_SIGMA = 0.01
 
 
 def _default_span(trace: Trace) -> ComponentSpan:
@@ -37,13 +40,15 @@ def _default_span(trace: Trace) -> ComponentSpan:
 
 @dataclass
 class ComponentOnlineState:
-    window: deque = field(default_factory=deque)
     warmup_outputs: list[str] = field(default_factory=list)
     baseline_outputs: list[str] | None = None
     cusum_states: dict[str, CusumState] = field(default_factory=dict)
+    cusum_calibration: dict[str, list[float]] = field(default_factory=dict)
     cusum_mu0: dict[str, float] = field(default_factory=dict)
     cusum_k: dict[str, float] = field(default_factory=dict)
+    cusum_h: dict[str, float] = field(default_factory=dict)
     trace_count: int = 0
+    scored_count: int = 0
     online_alarms: dict[str, int] = field(default_factory=dict)
 
 
@@ -58,7 +63,17 @@ class PipelineReport:
 
 
 class PipelineMonitor:
-    """Per-component monitoring for multi-step LLM pipelines."""
+    """Per-component monitoring for multi-step LLM pipelines.
+
+    Each component's first `warmup` outputs become its frozen baseline, and
+    every later output is scored against that baseline. The baseline is not a
+    rolling window on purpose: a window that follows recent outputs would absorb
+    a slow drift instead of flagging it.
+
+    Online CUSUM runs per (component, metric). Its reference mean and sigma are
+    estimated from the first `cusum_calibration` scored traces, the slack is
+    0.5 sigma, and cusum_h is the alarm threshold in sigma units.
+    """
 
     def __init__(
         self,
@@ -66,18 +81,18 @@ class PipelineMonitor:
         collector: BaseCollector,
         metrics: list[BaseMetric] | None = None,
         db_path: str = "spaniq.db",
-        window_size: int = _WINDOW_DEFAULT,
         warmup: int = _WARMUP_DEFAULT,
         cusum_stride: int = _CUSUM_STRIDE_DEFAULT,
         cusum_h: float = _CUSUM_H_DEFAULT,
+        cusum_calibration: int = _CUSUM_CALIBRATION_DEFAULT,
     ) -> None:
         self.pipeline_name = pipeline_name
         self.collector = collector
         self.db_path = db_path
-        self.window_size = window_size
         self.warmup = warmup
         self.cusum_stride = cusum_stride
         self.cusum_h = cusum_h
+        self.cusum_calibration = cusum_calibration
 
         self.timeline_store = TimelineStore(db_path)
         self.baseline_store = BaselineStore(db_path)
@@ -94,9 +109,7 @@ class PipelineMonitor:
 
     def _get_state(self, component_name: str) -> ComponentOnlineState:
         if component_name not in self._state:
-            self._state[component_name] = ComponentOnlineState(
-                window=deque(maxlen=self.window_size)
-            )
+            self._state[component_name] = ComponentOnlineState()
             self._pass_counts[component_name] = {}
             self._total_counts[component_name] = {}
         return self._state[component_name]
@@ -119,15 +132,11 @@ class PipelineMonitor:
             self._record_side_series(trace, span, state)
             return
 
-        state.window.append(span.output)
-        if len(state.window) < 2:
-            return
-
-        baseline_outputs = state.baseline_outputs
+        state.scored_count += 1
         tc = LLMTestCase(
             input=trace.input,
             actual_output=span.output,
-            baseline_outputs=baseline_outputs,
+            baseline_outputs=state.baseline_outputs,
         )
 
         for metric in self.metrics:
@@ -160,19 +169,31 @@ class PipelineMonitor:
         score: float,
         state: ComponentOnlineState,
     ) -> None:
-        if state.trace_count % self.cusum_stride != 0:
-            return
         key = metric_name
         if key not in state.cusum_states:
+            calibration = state.cusum_calibration.setdefault(key, [])
+            calibration.append(score)
+            if len(calibration) < self.cusum_calibration:
+                return
+            sigma = max(float(np.std(calibration)), _CUSUM_MIN_SIGMA)
+            state.cusum_mu0[key] = float(np.mean(calibration))
+            state.cusum_k[key] = _CUSUM_K_FACTOR * sigma
+            state.cusum_h[key] = self.cusum_h * sigma
             state.cusum_states[key] = CusumState()
-            state.cusum_mu0[key] = score
-            state.cusum_k[key] = _CUSUM_K_FACTOR * 0.05
+            return
+        # stride counts scored traces only, so warmup does not shift the phase
+        if state.scored_count % self.cusum_stride != 0:
+            return
         cusum_state = state.cusum_states[key]
         if cusum_state.alarm_index is not None:
             return
-        mu0 = state.cusum_mu0[key]
-        k = state.cusum_k[key]
-        new_state = cusum_update(cusum_state, score, mu0=mu0, k=k, h=self.cusum_h)
+        new_state = cusum_update(
+            cusum_state,
+            score,
+            mu0=state.cusum_mu0[key],
+            k=state.cusum_k[key],
+            h=state.cusum_h[key],
+        )
         state.cusum_states[key] = new_state
         if new_state.alarm_index is not None and key not in state.online_alarms:
             state.online_alarms[key] = state.trace_count

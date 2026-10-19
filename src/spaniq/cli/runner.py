@@ -197,7 +197,6 @@ def _pipeline_run(args: argparse.Namespace) -> None:
         pipeline_name=args.name,
         collector=collector,
         db_path=args.db,
-        window_size=args.window,
         warmup=args.warmup,
     )
     report = pm.run(max_traces=args.max_traces)
@@ -495,7 +494,6 @@ def _build_parser() -> argparse.ArgumentParser:
     pip_run.add_argument("--name", required=True, help="pipeline name")
     pip_run.add_argument("--path", required=True, help="JSONL trace file with components")
     pip_run.add_argument("--max-traces", type=int, default=None, dest="max_traces")
-    pip_run.add_argument("--window", type=int, default=20)
     pip_run.add_argument("--warmup", type=int, default=20)
 
     pip_status = pip_sub.add_parser("status", help="show live CUSUM statistics per component")

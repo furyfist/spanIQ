@@ -57,7 +57,6 @@ def run(offline: bool = True) -> None:
         pipeline_name="cascade-demo",
         collector=collector,
         db_path=db_path,
-        window_size=20,
         warmup=20,
     )
 

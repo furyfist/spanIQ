@@ -17,7 +17,7 @@ def _populate_store(tmp_path, component_scores: dict[str, list[float]], metric="
         for i, score in enumerate(scores):
             ts = (base + timedelta(seconds=i)).isoformat()
             store.record(
-                trace_id=f"{comp}-{i}",
+                trace_id=f"t-{i}",
                 baseline_id="b1",
                 metric_name=metric,
                 score=score,
@@ -133,3 +133,58 @@ def test_event_window_set(tmp_path):
     result = attribute(store, ["retrieval"], ["TestMetric"])
     assert isinstance(result.event_window, tuple)
     assert len(result.event_window) == 2
+
+
+def test_breaks_are_aligned_by_trace_not_row_number(tmp_path):
+    """A component that skipped traces must not look like it broke earlier.
+
+    "upstream" breaks at trace 100. "downstream" breaks at trace 105 but
+    has no rows for traces 0-29, so its own row 75 is trace 105. Ranked by row
+    number it would wrongly come first.
+    """
+    store = TimelineStore(str(tmp_path / "align.db"))
+    from datetime import datetime, timedelta, timezone
+
+    base = datetime(2024, 1, 1, tzinfo=timezone.utc)
+    up = _make_scores(n=200, break_at=100, seed=1)
+    down = _make_scores(n=200, break_at=105, seed=2)
+    for i in range(200):
+        ts = (base + timedelta(seconds=i)).isoformat()
+        for comp, scores in (("upstream", up), ("downstream", down)):
+            if comp == "downstream" and i < 30:
+                continue
+            store.record(
+                trace_id=f"t-{i}",
+                baseline_id=f"pipe/{comp}",
+                metric_name="TestMetric",
+                score=scores[i],
+                threshold=0.5,
+                passed=True,
+                timestamp=ts,
+                component=comp,
+            )
+    result = attribute(store, ["upstream", "downstream"], ["TestMetric"], last_n=500)
+    assert result.root_cause.component == "upstream"
+    assert abs(result.root_cause.break_trace_index - 100) <= 3
+
+
+def test_pipeline_filter_ignores_other_pipelines(tmp_path):
+    store = TimelineStore(str(tmp_path / "multi.db"))
+    broken = _make_scores(break_at=100)
+    flat = list(np.random.default_rng(9).normal(0.8, 0.03, 200))
+    for pipe, scores in (("a", broken), ("b", flat)):
+        for i, score in enumerate(scores):
+            store.record(
+                trace_id=f"{pipe}-{i}",
+                baseline_id=f"{pipe}/gen",
+                metric_name="TestMetric",
+                score=score,
+                threshold=0.5,
+                passed=True,
+                timestamp=f"2024-01-01T00:{i // 60:02d}:{i % 60:02d}+00:00",
+                component="gen",
+            )
+    assert store.pipelines() == ["a", "b"]
+    assert store.components(pipeline="b") == ["gen"]
+    assert attribute(store, ["gen"], ["TestMetric"], pipeline="b").root_cause is None
+    assert attribute(store, ["gen"], ["TestMetric"], pipeline="a").root_cause is not None

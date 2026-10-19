@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from spaniq.attribution.changepoint.pelt import detect_changepoints
-from spaniq.monitor.timeline_store import TimelineStore
+from spaniq.monitor.timeline_store import TimelineRow, TimelineStore
 
 
 @dataclass
@@ -26,6 +26,18 @@ class AttributionResult:
     verdict: str
 
 
+def _trace_positions(all_rows) -> dict[str, int]:
+    """Position of every trace in arrival order (earliest timestamp, then insertion id)."""
+    first_seen: dict[str, tuple[str, int]] = {}
+    for rows in all_rows:
+        for r in rows:
+            key = (r.timestamp, r.id)
+            if r.trace_id not in first_seen or key < first_seen[r.trace_id]:
+                first_seen[r.trace_id] = key
+    ordered = sorted(first_seen, key=first_seen.__getitem__)
+    return {trace_id: i for i, trace_id in enumerate(ordered)}
+
+
 def attribute(
     timeline: TimelineStore,
     components: list[str],
@@ -35,20 +47,37 @@ def attribute(
     pelt_penalty: float | None = None,
     cusum_alarms: dict[str, dict[str, int]] | None = None,
     warmup: int = 0,
+    pipeline: str | None = None,
 ) -> AttributionResult:
     """Run PELT on each (component, metric) series, cluster changepoints,
-    rank by earliest break. cusum_alarms is optional metadata from online detection."""
+    rank by earliest break. cusum_alarms is optional metadata from online detection.
 
-    breaks_with_metrics: dict[str, dict[int, list[str]]] = {c: {} for c in components}
+    Break positions are trace positions shared by all components, not row
+    numbers within one component's series: a component that skipped some traces
+    (empty outputs) or started later would otherwise look like it broke earlier
+    than it did. pipeline limits the data to one PipelineMonitor pipeline.
+    """
+
+    series_rows: dict[tuple[str, str], list[TimelineRow]] = {}
     for component in components:
         for metric in metrics:
-            series = timeline.query_series(component=component, metric_name=metric, last_n=last_n)
-            if len(series) < 20:
-                continue
-            arr = np.array(series, dtype=float)
-            cps = detect_changepoints(arr, penalty=pelt_penalty)
-            for cp in cps:
-                breaks_with_metrics[component].setdefault(cp, []).append(metric)
+            series_rows[(component, metric)] = timeline.query(
+                metric_name=metric,
+                last_n=last_n,
+                component=component,
+                ascending=True,
+                baseline_id=f"{pipeline}/{component}" if pipeline is not None else None,
+            )
+    position = _trace_positions(series_rows.values())
+
+    breaks_with_metrics: dict[str, dict[int, list[str]]] = {c: {} for c in components}
+    for (component, metric), rows in series_rows.items():
+        if len(rows) < 20:
+            continue
+        arr = np.array([r.score for r in rows], dtype=float)
+        for cp in detect_changepoints(arr, penalty=pelt_penalty):
+            at = position[rows[cp].trace_id]
+            breaks_with_metrics[component].setdefault(at, []).append(metric)
 
     component_breaks: list[ComponentBreak] = []
     for component in components:
@@ -74,7 +103,7 @@ def attribute(
     if not component_breaks:
         healthy = list(components)
         return AttributionResult(
-            event_window=(0, last_n),
+            event_window=(0, max(len(position), 1) + warmup),
             root_cause=None,
             cascade=[],
             healthy=healthy,
@@ -125,7 +154,7 @@ def attribute(
     healthy = [c for c in components if c not in {b.component for b in event_cluster}]
 
     all_indices = [b.break_trace_index for b in event_cluster]
-    event_window = (min(all_indices), last_n)
+    event_window = (min(all_indices), max(len(position), 1) + warmup)
 
     if len(event_cluster) > 1:
         lead = event_cluster[1].break_trace_index - root_cause.break_trace_index

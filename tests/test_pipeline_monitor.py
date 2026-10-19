@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 
+import numpy as np
+import pytest
+
 from spaniq.attribution.component import ComponentKind, ComponentSpan
 from spaniq.attribution.pipeline_monitor import PipelineMonitor
 from spaniq.monitor.collectors.base import BaseCollector
@@ -44,7 +47,7 @@ def _make_traces(n=40, component_names=("retrieval", "generation"), seed=0):
 def test_per_component_windows_isolated(tmp_path):
     db = str(tmp_path / "test.db")
     traces = _make_traces(n=50, component_names=("A", "B"))
-    pm = PipelineMonitor("pipe", ListCollector(traces), db_path=db, warmup=10, window_size=10)
+    pm = PipelineMonitor("pipe", ListCollector(traces), db_path=db, warmup=10)
     report = pm.run()
     assert "A" in report.components_seen
     assert "B" in report.components_seen
@@ -75,9 +78,9 @@ def test_v2_trace_falls_back_to_default(tmp_path):
 def test_two_components_dont_share_state(tmp_path):
     db = str(tmp_path / "test.db")
     traces = _make_traces(n=60, component_names=("X", "Y"))
-    pm = PipelineMonitor("pipe", ListCollector(traces), db_path=db, warmup=10, window_size=10)
+    pm = PipelineMonitor("pipe", ListCollector(traces), db_path=db, warmup=10)
     pm.run()
-    assert pm._state["X"].window is not pm._state["Y"].window
+    assert pm._state["X"].cusum_states is not pm._state["Y"].cusum_states
 
 
 def test_max_traces(tmp_path):
@@ -128,3 +131,46 @@ def test_online_alarm_recorded_after_shift(tmp_path):
     pm = PipelineMonitor("pipe", ListCollector(traces), db_path=db, warmup=10, cusum_h=2.0)
     report = pm.run()
     assert isinstance(report.online_alarms, dict)
+
+
+def test_cusum_reference_is_calibrated_from_scores(tmp_path):
+    db = str(tmp_path / "test.db")
+    traces = _make_traces(n=60, component_names=("A",))
+    pm = PipelineMonitor("pipe", ListCollector(traces), db_path=db, warmup=10, cusum_calibration=8)
+    pm.run()
+    state = pm._state["A"]
+    for metric, calibration in state.cusum_calibration.items():
+        assert len(calibration) == 8
+        assert state.cusum_mu0[metric] == pytest.approx(float(np.mean(calibration)))
+        assert state.cusum_k[metric] == pytest.approx(0.5 * max(float(np.std(calibration)), 0.01))
+
+
+def test_cusum_alarms_on_clear_shift_only(tmp_path):
+    import random
+
+    random.seed(3)
+    good = ["The capital of France is Paris.", "Paris is the capital city of France."]
+    bad = ["Error: upstream retrieval returned no documents for this query at all."]
+
+    def run(shift_at):
+        traces = []
+        for i in range(160):
+            out = random.choice(good) if i < shift_at else bad[0]
+            traces.append(
+                Trace(
+                    input="q",
+                    output=out,
+                    components=[ComponentSpan("gen", ComponentKind.GENERATION, out)],
+                )
+            )
+        pm = PipelineMonitor(
+            "p",
+            ListCollector(traces),
+            db_path=str(tmp_path / f"{shift_at}.db"),
+            warmup=10,
+            cusum_stride=1,
+        )
+        return pm.run().online_alarms["gen"]
+
+    assert run(shift_at=100)
+    assert not run(shift_at=1000)
