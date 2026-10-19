@@ -88,6 +88,7 @@ def save_attribution_png(
     primary_metric: str,
     path: str,
     last_n: int = 500,
+    pipeline: str | None = None,
 ) -> None:
     import matplotlib.pyplot as plt
 
@@ -104,7 +105,10 @@ def save_attribution_png(
 
     for ax, component in zip(axes, components, strict=True):
         series = timeline.query_series(
-            component=component, metric_name=primary_metric, last_n=last_n
+            component=component,
+            metric_name=primary_metric,
+            last_n=last_n,
+            baseline_id=f"{pipeline}/{component}" if pipeline is not None else None,
         )
         xs = list(range(len(series)))
         color = "steelblue"

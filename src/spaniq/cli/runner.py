@@ -7,7 +7,70 @@ import subprocess
 import sys
 import time
 
+DEFAULT_DB = "spaniq.db"
+# Groq retired llama-3.3-70b-versatile; pass --model for the model you run in production.
+DEFAULT_GROQ_MODEL = "openai/gpt-oss-120b"
+DEFAULT_METRICS = ["ResponseDriftMetric", "SemanticSimilarityMetric", "OutputStabilityMetric"]
+
+
+class CLIError(Exception):
+    """A user-facing error: printed as one line, exit status 1, no traceback."""
+
+
 # ── helpers ───────────────────────────────────────────────────────────────────
+
+
+def _metrics_from_names(spec: str) -> list:
+    """Metric instances from a comma-separated list; accepts "ResponseDrift" or "ResponseDriftMetric"."""
+    from spaniq.metrics.consistency import ConsistencyMetric
+    from spaniq.metrics.output_stability import OutputStabilityMetric
+    from spaniq.metrics.response_drift import ResponseDriftMetric
+    from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
+
+    factories = {
+        cls.__name__: cls
+        for cls in (
+            ResponseDriftMetric,
+            SemanticSimilarityMetric,
+            OutputStabilityMetric,
+            ConsistencyMetric,
+        )
+    }
+    metrics = []
+    for raw in spec.split(","):
+        name = raw.strip()
+        if not name:
+            continue
+        cls = factories.get(name) or factories.get(f"{name}Metric")
+        if cls is None:
+            valid = ", ".join(sorted(factories))
+            raise CLIError(f"unknown metric '{name}' (valid: {valid})")
+        metrics.append(cls())
+    if not metrics:
+        raise CLIError("--metrics is empty")
+    return metrics
+
+
+def _read_baseline_file(path: str) -> list[str]:
+    """Outputs from a JSONL file of {"output": ...} objects, or plain text lines."""
+    outputs: list[str] = []
+    with open(path, encoding="utf-8") as fh:
+        for lineno, line in enumerate(fh, 1):
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                obj = json.loads(line)
+            except json.JSONDecodeError:
+                outputs.append(line)
+                continue
+            if isinstance(obj, dict):
+                if "output" not in obj:
+                    print(f"warning: line {lineno} has no 'output' field, skipped", file=sys.stderr)
+                    continue
+                obj = obj["output"]
+            outputs.append(obj if isinstance(obj, str) else json.dumps(obj, ensure_ascii=False))
+    return outputs
 
 
 def _baseline_collect(args: argparse.Namespace) -> None:
@@ -17,19 +80,10 @@ def _baseline_collect(args: argparse.Namespace) -> None:
 
     if args.source == "file":
         if not args.path:
-            print("error: --path is required when --source file", file=sys.stderr)
-            sys.exit(1)
-        outputs: list[str] = []
-        with open(args.path) as fh:
-            for line in fh:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    obj = json.loads(line)
-                    outputs.append(obj.get("output", obj) if isinstance(obj, dict) else str(obj))
-                except json.JSONDecodeError:
-                    outputs.append(line)
+            raise CLIError("--path is required when --source file")
+        outputs = _read_baseline_file(args.path)
+        if not outputs:
+            raise CLIError(f"no outputs found in {args.path}")
         baseline_id = store.create(
             name=args.name,
             prompt=args.prompt,
@@ -42,32 +96,42 @@ def _baseline_collect(args: argparse.Namespace) -> None:
     # --source groq (default)
     try:
         from groq import Groq
-    except ImportError:
-        print("error: groq SDK not installed — run: pip install spaniq[groq]", file=sys.stderr)
-        sys.exit(1)
+    except ImportError as exc:
+        raise CLIError("groq SDK not installed — run: pip install spaniq[groq]") from exc
 
     api_key = os.environ.get("GROQ_API_KEY")
     if not api_key:
-        print("error: GROQ_API_KEY not set in environment", file=sys.stderr)
-        sys.exit(1)
+        raise CLIError("GROQ_API_KEY not set in environment")
 
     client = Groq(api_key=api_key)
-    model = args.model or "llama-3.3-70b-versatile"
+    model = args.model or DEFAULT_GROQ_MODEL
     outputs = []
     rpm_delay = 60.0 / 28  # stay safely under 30 RPM
 
     print(f"collecting {args.n} outputs from {model} …")
+    failure: Exception | None = None
     for i in range(args.n):
-        resp = client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": args.prompt}],
-        )
+        try:
+            resp = client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": args.prompt}],
+            )
+        except Exception as exc:
+            failure = exc
+            break
         outputs.append(resp.choices[0].message.content or "")
         print(f"  [{i + 1}/{args.n}] collected", end="\r")
         if i < args.n - 1:
             time.sleep(rpm_delay)
 
     print()
+    if failure is not None:
+        print(
+            f"warning: Groq call failed after {len(outputs)} output(s): {failure}", file=sys.stderr
+        )
+        if not outputs:
+            raise CLIError("no outputs collected, baseline not created")
+        print("saving the outputs collected so far", file=sys.stderr)
     baseline_id = store.create(
         name=args.name,
         prompt=args.prompt,
@@ -118,11 +182,7 @@ def _baseline_show(args: argparse.Namespace) -> None:
     from spaniq.monitor.baseline_store import BaselineStore
 
     store = BaselineStore(args.db)
-    try:
-        b = store.get_by_name(args.name)
-    except KeyError as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        sys.exit(1)
+    b = store.get_by_name(args.name)
 
     console = Console()
     console.print(f"[bold]{b.name}[/bold]  v{b.version}  ({b.n_outputs} outputs)")
@@ -143,39 +203,21 @@ def _monitor_run(args: argparse.Namespace) -> None:
     from spaniq.monitor.monitor import Monitor
 
     if args.source == "langfuse":
-        try:
-            from spaniq.monitor.collectors.langfuse import LangfuseCollector
-        except ImportError:
-            print(
-                "error: langfuse SDK not installed — run: pip install spaniq[langfuse]",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        import importlib.util
+
+        if importlib.util.find_spec("langfuse") is None:
+            raise CLIError("langfuse SDK not installed — run: pip install spaniq[langfuse]")
+        from spaniq.monitor.collectors.langfuse import LangfuseCollector
+
         collector = LangfuseCollector(poll_interval=args.poll_interval)
-    elif args.source == "file":
-        if not args.path:
-            print("error: --path is required when --source file", file=sys.stderr)
-            sys.exit(1)
-        collector = FileCollector(args.path)
     else:
-        print(f"error: unknown source '{args.source}'", file=sys.stderr)
-        sys.exit(1)
+        if not args.path:
+            raise CLIError("--path is required when --source file")
+        if not os.path.exists(args.path):
+            raise CLIError(f"trace file not found: {args.path}")
+        collector = FileCollector(args.path)
 
-    metrics = None
-    if args.metrics:
-        from spaniq.metrics.consistency import ConsistencyMetric
-        from spaniq.metrics.output_stability import OutputStabilityMetric
-        from spaniq.metrics.response_drift import ResponseDriftMetric
-        from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
-
-        metric_map = {
-            "ResponseDrift": ResponseDriftMetric(),
-            "SemanticSimilarity": SemanticSimilarityMetric(),
-            "OutputStability": OutputStabilityMetric(),
-            "Consistency": ConsistencyMetric(),
-        }
-        names = [n.strip() for n in args.metrics.split(",")]
-        metrics = [metric_map[n] for n in names if n in metric_map]
+    metrics = _metrics_from_names(args.metrics) if args.metrics else None
 
     monitor = Monitor(
         baseline_name=args.baseline,
@@ -207,27 +249,35 @@ def _pipeline_run(args: argparse.Namespace) -> None:
 
 
 def _pipeline_status(args: argparse.Namespace) -> None:
+    import numpy as np
     from rich.console import Console
     from rich.table import Table
 
     from spaniq.monitor.timeline_store import TimelineStore
 
     store = TimelineStore(args.db)
-    comps = store.components()
+    comps = store.components(pipeline=args.name)
+    if not comps:
+        raise CLIError(f"no data for pipeline '{args.name}' — run 'spaniq pipeline run' first")
+    metrics = [m.__class__.__name__ for m in _metrics_from_names(args.metrics)]
     console = Console()
-    table = Table(title=f"Pipeline components — last {args.last} traces")
+    table = Table(title=f"Pipeline '{args.name}' — last {args.last} traces")
     table.add_column("component")
     table.add_column("metric")
     table.add_column("mean", justify="right")
     table.add_column("trend", justify="right")
     table.add_column("pass_rate", justify="right")
     for comp in comps:
-        for metric in ["ResponseDriftMetric", "SemanticSimilarityMetric", "OutputStabilityMetric"]:
-            rows = store.query(metric, last_n=args.last, component=comp, ascending=True)
+        for metric in metrics:
+            rows = store.query(
+                metric,
+                last_n=args.last,
+                component=comp,
+                ascending=True,
+                baseline_id=f"{args.name}/{comp}",
+            )
             if not rows:
                 continue
-            import numpy as np
-
             scores = [r.score for r in rows]
             mean = float(np.mean(scores))
             trend = float(np.polyfit(range(len(scores)), scores, 1)[0]) if len(scores) >= 2 else 0.0
@@ -248,16 +298,15 @@ def _attribute(args: argparse.Namespace) -> None:
     from spaniq.monitor.timeline_store import TimelineStore
 
     store = TimelineStore(args.db)
-    components = store.components()
+    components = store.components(pipeline=args.pipeline)
     if not components:
-        print("no component data found in timeline — run 'spaniq pipeline run' first")
-        return
+        known = ", ".join(store.pipelines()) or "none"
+        raise CLIError(
+            f"no data for pipeline '{args.pipeline}' (pipelines in {args.db}: {known}) — "
+            "run 'spaniq pipeline run' first"
+        )
 
-    metrics = (
-        [m.strip() for m in args.metrics.split(",")]
-        if args.metrics
-        else ["ResponseDriftMetric", "SemanticSimilarityMetric", "OutputStabilityMetric"]
-    )
+    metrics = [m.__class__.__name__ for m in _metrics_from_names(args.metrics)]
 
     result = attribute(
         timeline=store,
@@ -266,6 +315,7 @@ def _attribute(args: argparse.Namespace) -> None:
         last_n=args.last,
         pelt_penalty=args.penalty,
         warmup=args.warmup,
+        pipeline=args.pipeline,
     )
 
     if args.as_json:
@@ -283,38 +333,74 @@ def _attribute(args: argparse.Namespace) -> None:
             primary_metric=metrics[0],
             path=args.export,
             last_n=args.last,
+            pipeline=args.pipeline,
         )
         from rich.console import Console
 
         Console().print(f"[green]saved:[/green] {args.export}")
 
 
+def _trace_to_json(trace) -> str:
+    """A Trace as one FileCollector-compatible JSONL line."""
+    record = {
+        "trace_id": trace.trace_id,
+        "timestamp": trace.timestamp,
+        "input": trace.input,
+        "output": trace.output,
+    }
+    if trace.metadata:
+        record["metadata"] = trace.metadata
+    if trace.components:
+        record["components"] = [
+            {
+                "name": c.name,
+                "kind": c.kind.value,
+                "output": c.output,
+                "latency_ms": c.latency_ms,
+                "error": c.error,
+            }
+            for c in trace.components
+        ]
+    return json.dumps(record, ensure_ascii=False)
+
+
 def _collect_otel(args: argparse.Namespace) -> None:
-    try:
-        from spaniq.monitor.collectors.otel import OTelCollector
-    except ImportError:
-        print("error: OTel deps not installed — run: pip install spaniq[otel]", file=sys.stderr)
-        sys.exit(1)
+    if not args.store_only and not args.baseline:
+        raise CLIError("--baseline is required unless --store-only is set")
+    from spaniq.monitor.collectors.otel import OTelCollector
 
     collector = OTelCollector(
         grpc_port=args.grpc_port,
         http_port=args.http_port,
         assembly_timeout=args.assembly_timeout,
+        host=args.host,
     )
-    collector.start()
-    print(f"OTel collector listening — gRPC :{args.grpc_port}  HTTP :{args.http_port}")
-    print("Point your OTel exporter to localhost:4317 (gRPC) or localhost:4318 (HTTP)")
+    try:
+        collector.start()
+    except OSError as exc:
+        raise CLIError(f"{exc} — pick free ports with --grpc-port / --http-port") from exc
+    shown = "localhost" if args.host in ("127.0.0.1", "localhost") else args.host
+    print(
+        f"OTel collector listening on {args.host} — gRPC :{args.grpc_port}  HTTP :{args.http_port}"
+    )
+    print(
+        f"Point your OTel exporter to http://{shown}:{args.grpc_port} (gRPC) "
+        f"or http://{shown}:{args.http_port}/v1/traces (HTTP)"
+    )
     print("Press Ctrl+C to stop.\n")
 
     if args.store_only:
-        # FIXME: --store-only currently only prints received traces; it does not
-        # persist them. Wiring the collector output into a TimelineStore is the fix.
+        stored = 0
         try:
-            for trace in collector.collect():
-                print(f"  trace received: {trace.trace_id[:8]}…")
+            with open(args.traces_path, "a", encoding="utf-8") as fh:
+                for trace in collector.collect():
+                    fh.write(_trace_to_json(trace) + "\n")
+                    fh.flush()
+                    stored += 1
+                    print(f"  stored trace {trace.trace_id[:8]}… ({stored} total)")
         except KeyboardInterrupt:
             collector.stop()
-            print("\nstopped.")
+            print(f"\nstopped. {stored} trace(s) appended to {args.traces_path}")
         return
 
     from spaniq.monitor.monitor import Monitor
@@ -368,8 +454,13 @@ def _benchmark_run(args: argparse.Namespace) -> None:
     try:
         from benchmarks.run_benchmark import main as bench_main
     except ImportError as exc:
-        print(f"error: benchmark deps not available — {exc}", file=sys.stderr)
-        sys.exit(1)
+        # benchmarks/ (datasets, runners) is not part of the installed wheel
+        raise CLIError(
+            "the benchmark suite runs from a source checkout: "
+            "git clone https://github.com/furyfist/spanIQ && cd spanIQ && "
+            'pip install -e ".[benchmark]" && spaniq benchmark ...'
+            f" ({exc})"
+        ) from exc
     bench_main(
         tools=[t.strip() for t in args.tool.split(",")],
         datasets=[d.strip() for d in args.dataset.split(",")],
@@ -428,6 +519,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="spaniq")
     sub = parser.add_subparsers(dest="command")
 
+    # --db is accepted before or after the subcommand ("spaniq baseline --db x list"
+    # and "spaniq baseline list --db x"); SUPPRESS keeps the group value unless
+    # the leaf flag is given.
+    db_leaf = argparse.ArgumentParser(add_help=False)
+    db_leaf.add_argument("--db", default=argparse.SUPPRESS, help="path to spaniq.db")
+
     # ── test run ──────────────────────────────────────────────────────────────
     test_p = sub.add_parser("test", help="run tests")
     test_sub = test_p.add_subparsers(dest="test_command")
@@ -436,10 +533,10 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # ── baseline ──────────────────────────────────────────────────────────────
     bl_p = sub.add_parser("baseline", help="manage baselines")
-    bl_p.add_argument("--db", default="spaniq.db", help="path to spaniq.db")
+    bl_p.add_argument("--db", default=DEFAULT_DB, help="path to spaniq.db")
     bl_sub = bl_p.add_subparsers(dest="baseline_command")
 
-    col_p = bl_sub.add_parser("collect", help="collect baseline outputs")
+    col_p = bl_sub.add_parser("collect", help="collect baseline outputs", parents=[db_leaf])
     col_p.add_argument("--name", required=True, help="baseline name")
     col_p.add_argument("--prompt", required=True, help="prompt text")
     col_p.add_argument("--source", choices=["groq", "file"], default="groq")
@@ -447,65 +544,75 @@ def _build_parser() -> argparse.ArgumentParser:
     col_p.add_argument("--n", type=int, default=50, help="number of outputs (groq source)")
     col_p.add_argument("--path", default=None, help="JSONL file path (file source)")
 
-    bl_sub.add_parser("list", help="list all baselines")
+    bl_sub.add_parser("list", help="list all baselines", parents=[db_leaf])
 
-    show_p = bl_sub.add_parser("show", help="inspect a baseline")
+    show_p = bl_sub.add_parser("show", help="inspect a baseline", parents=[db_leaf])
     show_p.add_argument("name", help="baseline name")
 
     # ── monitor ───────────────────────────────────────────────────────────────
     mon_p = sub.add_parser("monitor", help="run production monitoring")
-    mon_p.add_argument("--db", default="spaniq.db")
+    mon_p.add_argument("--db", default=DEFAULT_DB)
     mon_sub = mon_p.add_subparsers(dest="monitor_command")
 
-    run_mon = mon_sub.add_parser("run", help="run monitor loop")
+    run_mon = mon_sub.add_parser("run", help="run monitor loop", parents=[db_leaf])
     run_mon.add_argument("--baseline", required=True, help="baseline name")
     run_mon.add_argument("--source", choices=["file", "langfuse"], default="file")
     run_mon.add_argument("--path", default=None, help="JSONL file path (file source)")
     run_mon.add_argument("--poll-interval", type=int, default=30, dest="poll_interval")
-    run_mon.add_argument("--metrics", default=None, help="comma-separated metric names")
+    run_mon.add_argument(
+        "--metrics",
+        default=None,
+        help="comma-separated metric names, e.g. ResponseDrift,SemanticSimilarity "
+        "(default: ResponseDrift, SemanticSimilarity, OutputStability)",
+    )
     run_mon.add_argument("--alert-after", type=int, default=3, dest="alert_after")
     run_mon.add_argument("--alerts-path", default="alerts.jsonl", dest="alerts_path")
     run_mon.add_argument("--max-traces", type=int, default=None, dest="max_traces")
 
     # ── timeline ──────────────────────────────────────────────────────────────
     tl_p = sub.add_parser("timeline", help="inspect the score timeline")
-    tl_p.add_argument("--db", default="spaniq.db")
+    tl_p.add_argument("--db", default=DEFAULT_DB)
     tl_sub = tl_p.add_subparsers(dest="timeline_command")
 
-    show_tl = tl_sub.add_parser("show", help="print sparkline to terminal")
+    show_tl = tl_sub.add_parser("show", help="print sparkline to terminal", parents=[db_leaf])
     show_tl.add_argument("--metric", required=True)
     show_tl.add_argument("--last", type=int, default=50)
 
-    export_tl = tl_sub.add_parser("export", help="export PNG chart")
+    export_tl = tl_sub.add_parser("export", help="export PNG chart", parents=[db_leaf])
     export_tl.add_argument("--metric", required=True)
     export_tl.add_argument("--last", type=int, default=200)
     export_tl.add_argument("--output", default="timeline.png")
 
-    summary_tl = tl_sub.add_parser("summary", help="print aggregate stats")
+    summary_tl = tl_sub.add_parser("summary", help="print aggregate stats", parents=[db_leaf])
     summary_tl.add_argument("--metric", required=True)
     summary_tl.add_argument("--last", type=int, default=200)
 
     # ── pipeline ──────────────────────────────────────────────────────────────
     pip_p = sub.add_parser("pipeline", help="run per-component pipeline monitoring (V3)")
-    pip_p.add_argument("--db", default="spaniq.db")
+    pip_p.add_argument("--db", default=DEFAULT_DB)
     pip_sub = pip_p.add_subparsers(dest="pipeline_command")
 
-    pip_run = pip_sub.add_parser("run", help="run PipelineMonitor on a JSONL trace file")
+    pip_run = pip_sub.add_parser(
+        "run", help="run PipelineMonitor on a JSONL trace file", parents=[db_leaf]
+    )
     pip_run.add_argument("--name", required=True, help="pipeline name")
     pip_run.add_argument("--path", required=True, help="JSONL trace file with components")
     pip_run.add_argument("--max-traces", type=int, default=None, dest="max_traces")
     pip_run.add_argument("--warmup", type=int, default=20)
 
-    pip_status = pip_sub.add_parser("status", help="show live CUSUM statistics per component")
+    pip_status = pip_sub.add_parser(
+        "status", help="show score statistics per component of a pipeline", parents=[db_leaf]
+    )
     pip_status.add_argument("--name", required=True, help="pipeline name")
     pip_status.add_argument("--last", type=int, default=200)
+    pip_status.add_argument("--metrics", default=",".join(DEFAULT_METRICS))
 
     # ── attribute ─────────────────────────────────────────────────────────────
     attr_p = sub.add_parser("attribute", help="run failure attribution on stored timeline (V3)")
-    attr_p.add_argument("--db", default="spaniq.db")
+    attr_p.add_argument("--db", default=DEFAULT_DB)
     attr_p.add_argument("--pipeline", required=True, help="pipeline name")
     attr_p.add_argument("--last", type=int, default=500)
-    attr_p.add_argument("--metrics", default=None, help="comma-separated metric names")
+    attr_p.add_argument("--metrics", default=",".join(DEFAULT_METRICS))
     attr_p.add_argument("--json", action="store_true", dest="as_json", help="output JSON")
     attr_p.add_argument("--export", default=None, help="save PNG chart to this path")
     attr_p.add_argument(
@@ -517,15 +624,29 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # ── collect-otel ──────────────────────────────────────────────────────────
     otel_p = sub.add_parser("collect-otel", help="receive OTel spans via OTLP and run monitoring")
-    otel_p.add_argument("--baseline", required=True, help="baseline name to monitor against")
-    otel_p.add_argument("--db", default="spaniq.db")
+    otel_p.add_argument(
+        "--baseline", default=None, help="baseline name to monitor against (not with --store-only)"
+    )
+    otel_p.add_argument("--db", default=DEFAULT_DB)
+    otel_p.add_argument(
+        "--host",
+        default="127.0.0.1",
+        help="interface to bind; 0.0.0.0 accepts other machines (no TLS or auth)",
+    )
     otel_p.add_argument("--grpc-port", type=int, default=4317, dest="grpc_port")
     otel_p.add_argument("--http-port", type=int, default=4318, dest="http_port")
     otel_p.add_argument(
         "--store-only",
         action="store_true",
         dest="store_only",
-        help="collect and store traces without running metric monitoring",
+        help="append received traces to --traces-path as JSONL instead of monitoring; "
+        "replay later with 'spaniq monitor run --path' or 'spaniq pipeline run --path'",
+    )
+    otel_p.add_argument(
+        "--traces-path",
+        default="otel_traces.jsonl",
+        dest="traces_path",
+        help="JSONL output for --store-only",
     )
     otel_p.add_argument("--assembly-timeout", type=float, default=5.0, dest="assembly_timeout")
     otel_p.add_argument("--alert-after", type=int, default=3, dest="alert_after")
@@ -533,7 +654,7 @@ def _build_parser() -> argparse.ArgumentParser:
 
     # ── dashboard ─────────────────────────────────────────────────────────────
     dash_p = sub.add_parser("dashboard", help="launch the Streamlit local dashboard")
-    dash_p.add_argument("--db", default="spaniq.db", help="path to spaniq.db")
+    dash_p.add_argument("--db", default=DEFAULT_DB, help="path to spaniq.db")
     dash_p.add_argument("--port", type=int, default=8501, help="Streamlit port")
 
     # ── benchmark ─────────────────────────────────────────────────────────────
@@ -576,10 +697,27 @@ def _build_parser() -> argparse.ArgumentParser:
 # ── entrypoint ────────────────────────────────────────────────────────────────
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
     parser = _build_parser()
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
+    try:
+        _dispatch(parser, args)
+    except CLIError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except KeyError as exc:
+        # BaselineStore raises KeyError("Baseline not found: <name>")
+        message = exc.args[0] if exc.args else exc
+        print(f"error: {message}", file=sys.stderr)
+        sys.exit(1)
+    except FileNotFoundError as exc:
+        print(f"error: file not found: {exc.filename}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        sys.exit(130)
 
+
+def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None:
     if args.command == "test":
         if args.test_command == "run":
             sys.exit(subprocess.call([sys.executable, "-m", "pytest", *args.pytest_args, "-v"]))
@@ -587,8 +725,6 @@ def main() -> None:
             parser.parse_args(["test", "--help"])
 
     elif args.command == "baseline":
-        if not hasattr(args, "db"):
-            args.db = "spaniq.db"
         if args.baseline_command == "collect":
             _baseline_collect(args)
         elif args.baseline_command == "list":
@@ -599,16 +735,12 @@ def main() -> None:
             parser.parse_args(["baseline", "--help"])
 
     elif args.command == "monitor":
-        if not hasattr(args, "db"):
-            args.db = "spaniq.db"
         if args.monitor_command == "run":
             _monitor_run(args)
         else:
             parser.parse_args(["monitor", "--help"])
 
     elif args.command == "pipeline":
-        if not hasattr(args, "db"):
-            args.db = "spaniq.db"
         if args.pipeline_command == "run":
             _pipeline_run(args)
         elif args.pipeline_command == "status":
@@ -617,13 +749,9 @@ def main() -> None:
             parser.parse_args(["pipeline", "--help"])
 
     elif args.command == "attribute":
-        if not hasattr(args, "db"):
-            args.db = "spaniq.db"
         _attribute(args)
 
     elif args.command == "timeline":
-        if not hasattr(args, "db"):
-            args.db = "spaniq.db"
         if args.timeline_command == "show":
             _timeline_show(args)
         elif args.timeline_command == "export":

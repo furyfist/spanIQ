@@ -125,8 +125,12 @@ its trace was emitted is dropped rather than turned into a second, wrongly roote
 # Custom ports
 spaniq collect-otel --baseline my_baseline --grpc-port 4317 --http-port 4318
 
-# Store only (no monitoring, just ingest)
-spaniq collect-otel --store-only --db spaniq.db
+# Store only (no monitoring, just ingest): appends each assembled trace to a JSONL file
+spaniq collect-otel --store-only --traces-path otel_traces.jsonl
+
+# Replay the stored traces later, against a baseline or per component
+spaniq monitor run --baseline my_baseline --path otel_traces.jsonl
+spaniq pipeline run --name my_pipeline --path otel_traces.jsonl
 
 # Accept spans from other machines (no TLS or auth: trusted networks only)
 spaniq collect-otel --baseline my_baseline --host 0.0.0.0

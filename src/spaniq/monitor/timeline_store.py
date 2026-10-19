@@ -179,9 +179,14 @@ class TimelineStore:
         component: str,
         metric_name: str,
         last_n: int = 500,
+        baseline_id: str | None = None,
     ) -> list[float]:
         rows = self.query(
-            metric_name=metric_name, last_n=last_n, component=component, ascending=True
+            metric_name=metric_name,
+            last_n=last_n,
+            component=component,
+            ascending=True,
+            baseline_id=baseline_id,
         )
         return [r.score for r in rows]
 
