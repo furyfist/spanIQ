@@ -9,14 +9,17 @@ from rich.console import Console
 from spaniq.attribution.changepoint.cusum import CusumState, cusum_update
 from spaniq.attribution.component import ComponentKind, ComponentSpan
 from spaniq.core.test_case import LLMTestCase
+from spaniq.drift.detector import WindowDriftDetector
 from spaniq.metrics.base import BaseMetric
 from spaniq.metrics.output_stability import OutputStabilityMetric
 from spaniq.metrics.response_drift import ResponseDriftMetric
 from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
+from spaniq.monitor.alerting import AlertEngine
 from spaniq.monitor.baseline_store import BaselineStore
 from spaniq.monitor.collectors.base import BaseCollector
 from spaniq.monitor.timeline_store import TimelineStore
 from spaniq.monitor.trace import Trace
+from spaniq.signals.extract import OUTPUT_UNIT, trace_signals
 
 console = Console()
 
@@ -50,6 +53,9 @@ class ComponentOnlineState:
     trace_count: int = 0
     scored_count: int = 0
     online_alarms: dict[str, int] = field(default_factory=dict)
+    warmup_signals: list[dict[str, float]] = field(default_factory=list)
+    drift_detector: WindowDriftDetector | None = None
+    drift_alarms: list[int] = field(default_factory=list)
 
 
 @dataclass
@@ -60,6 +66,7 @@ class PipelineReport:
     components_seen: list[str]
     online_alarms: dict[str, dict[str, int]]
     pass_rates: dict[str, dict[str, float]]
+    drift_alarms: dict[str, list[int]] = field(default_factory=dict)
 
 
 class PipelineMonitor:
@@ -73,6 +80,11 @@ class PipelineMonitor:
     Online CUSUM runs per (component, metric). Its reference mean and sigma are
     estimated from the first `cusum_calibration` scored traces, the slack is
     0.5 sigma, and cusum_h is the alarm threshold in sigma units.
+
+    Each component's signals are stored as signal.<name> series (for
+    `spaniq attribute --signals`) and a window of them is compared with the
+    warmup traces' signals; a shift raises one drift alert per incident and is
+    listed in PipelineReport.drift_alarms by trace count.
     """
 
     def __init__(
@@ -85,6 +97,10 @@ class PipelineMonitor:
         cusum_stride: int = _CUSUM_STRIDE_DEFAULT,
         cusum_h: float = _CUSUM_H_DEFAULT,
         cusum_calibration: int = _CUSUM_CALIBRATION_DEFAULT,
+        drift_window: int | None = 100,
+        drift_stride: int = 25,
+        record_signals: bool = True,
+        alerts_path: str | None = None,
     ) -> None:
         self.pipeline_name = pipeline_name
         self.collector = collector
@@ -94,8 +110,13 @@ class PipelineMonitor:
         self.cusum_h = cusum_h
         self.cusum_calibration = cusum_calibration
 
+        self.drift_window = drift_window
+        self.drift_stride = drift_stride
+        self.record_signals = record_signals
+
         self.timeline_store = TimelineStore(db_path)
         self.baseline_store = BaselineStore(db_path)
+        self.alert_engine = AlertEngine(alerts_path=alerts_path, db_path=db_path)
 
         self.metrics: list[BaseMetric] = metrics or [
             ResponseDriftMetric(),
@@ -118,15 +139,27 @@ class PipelineMonitor:
         self,
         trace: Trace,
         span: ComponentSpan,
+        signals: dict[str, float] | None = None,
     ) -> None:
         state = self._get_state(span.name)
         state.trace_count += 1
 
         if state.baseline_outputs is None:
             state.warmup_outputs.append(span.output)
+            if signals is not None:
+                state.warmup_signals.append(signals)
             if len(state.warmup_outputs) >= self.warmup:
                 state.baseline_outputs = list(state.warmup_outputs)
+                if self.drift_window and len(state.warmup_signals) >= 5:
+                    state.drift_detector = WindowDriftDetector(
+                        state.warmup_signals,
+                        window=self.drift_window,
+                        stride=self.drift_stride,
+                    )
             return
+
+        if signals is not None:
+            self._track_signals(trace, span, state, signals)
 
         if not span.output or not span.output.strip():
             self._record_side_series(trace, span, state)
@@ -161,6 +194,30 @@ class PipelineMonitor:
             self._update_cusum(span.name, metric.name, score, state)
 
         self._record_side_series(trace, span, state)
+
+    def _track_signals(
+        self,
+        trace: Trace,
+        span: ComponentSpan,
+        state: ComponentOnlineState,
+        signals: dict[str, float],
+    ) -> None:
+        if self.record_signals:
+            self.timeline_store.record_signals(
+                trace.trace_id,
+                f"{self.pipeline_name}/{span.name}",
+                signals,
+                trace.timestamp,
+                component=span.name,
+            )
+        if state.drift_detector is None:
+            return
+        report = state.drift_detector.update(signals)
+        if report is not None:
+            state.drift_alarms.append(state.trace_count)
+            self.alert_engine.fire_drift(
+                span.name, report, trace.trace_id, trace.timestamp, component=span.name
+            )
 
     def _update_cusum(
         self,
@@ -234,8 +291,12 @@ class PipelineMonitor:
         processed = 0
         for trace in self.collector.collect():
             spans = trace.components or [_default_span(trace)]
+            units = trace_signals(trace)
             for span in spans:
-                self._process_component(trace, span)
+                signals = units.get(span.name)
+                if signals is None and span.name == "default":
+                    signals = units[OUTPUT_UNIT]
+                self._process_component(trace, span, signals)
             processed += 1
             if max_traces and processed >= max_traces:
                 break
@@ -261,4 +322,9 @@ class PipelineMonitor:
             components_seen=list(self._state.keys()),
             online_alarms=alarms,
             pass_rates=pass_rates,
+            drift_alarms={
+                comp: list(state.drift_alarms)
+                for comp, state in self._state.items()
+                if state.drift_alarms
+            },
         )

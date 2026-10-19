@@ -236,6 +236,7 @@ def _monitor_run(args: argparse.Namespace) -> None:
         db_path=args.db,
         alert_after=args.alert_after,
         alerts_path=args.alerts_path,
+        drift_window=args.drift_window or None,
     )
     monitor.run(max_traces=args.max_traces)
 
@@ -250,12 +251,15 @@ def _pipeline_run(args: argparse.Namespace) -> None:
         collector=collector,
         db_path=args.db,
         warmup=args.warmup,
+        drift_window=args.drift_window or None,
     )
     report = pm.run(max_traces=args.max_traces)
-    if report.online_alarms:
-        from rich.console import Console
+    from rich.console import Console
 
+    if report.online_alarms:
         Console().print(f"[yellow]online alarms:[/yellow] {report.online_alarms}")
+    if report.drift_alarms:
+        Console().print(f"[yellow]drift alarms (trace count):[/yellow] {report.drift_alarms}")
 
 
 def _pipeline_status(args: argparse.Namespace) -> None:
@@ -648,6 +652,13 @@ def _build_parser() -> argparse.ArgumentParser:
     run_mon.add_argument("--alert-after", type=int, default=3, dest="alert_after")
     run_mon.add_argument("--alerts-path", default="alerts.jsonl", dest="alerts_path")
     run_mon.add_argument("--max-traces", type=int, default=None, dest="max_traces")
+    run_mon.add_argument(
+        "--drift-window",
+        type=int,
+        default=100,
+        dest="drift_window",
+        help="traces per drift-check window (0 turns the window check off)",
+    )
 
     # ── timeline ──────────────────────────────────────────────────────────────
     tl_p = sub.add_parser("timeline", help="inspect the score timeline")
@@ -679,6 +690,13 @@ def _build_parser() -> argparse.ArgumentParser:
     pip_run.add_argument("--path", required=True, help="JSONL trace file with components")
     pip_run.add_argument("--max-traces", type=int, default=None, dest="max_traces")
     pip_run.add_argument("--warmup", type=int, default=20)
+    pip_run.add_argument(
+        "--drift-window",
+        type=int,
+        default=100,
+        dest="drift_window",
+        help="traces per drift-check window (0 turns the window check off)",
+    )
 
     pip_status = pip_sub.add_parser(
         "status", help="show score statistics per component of a pipeline", parents=[db_leaf]

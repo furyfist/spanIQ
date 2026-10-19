@@ -19,6 +19,7 @@ class Alert:
     timestamp: str
     message: str
     consecutive_count: int
+    component: str = "default"
 
 
 @dataclass
@@ -31,7 +32,7 @@ class AlertEngine:
     """
 
     alert_after: int = 3
-    alerts_path: str = "alerts.jsonl"
+    alerts_path: str | None = "alerts.jsonl"
     alerts: list[Alert] = field(default_factory=list)
     db_path: str | None = None
     repeat_every: int | None = None
@@ -63,6 +64,31 @@ class AlertEngine:
             return (count - self.alert_after) % self.repeat_every == 0
         return False
 
+    def fire_drift(
+        self, unit: str, report, trace_id: str, timestamp: str, component: str = "default"
+    ) -> Alert:
+        """One alert for the start of a drift incident found by a WindowDriftDetector."""
+        shifted = report.drifted_signals
+        top = shifted[0] if shifted else None
+        details = ", ".join(
+            f"{s.signal} {s.baseline_mean:.3g}->{s.candidate_mean:.3g}" for s in shifted[:3]
+        )
+        alert = Alert(
+            metric_name=f"drift:{unit}",
+            score=abs(top.effect_size) if top and top.effect_size == top.effect_size else 0.0,
+            threshold=0.0,
+            trace_id=trace_id,
+            timestamp=timestamp,
+            message=(
+                f"DRIFT: {unit} outputs shifted over the last {report.n_candidate} traces "
+                f"({len(shifted)} signal(s): {details})"
+            ),
+            consecutive_count=report.n_candidate,
+            component=component,
+        )
+        self._emit(alert)
+        return alert
+
     def _fire(self, mr, trace_id: str, timestamp: str) -> None:
         count = self._consecutive[mr.metric_name]
         alert = Alert(
@@ -78,9 +104,13 @@ class AlertEngine:
             ),
             consecutive_count=count,
         )
+        self._emit(alert)
+
+    def _emit(self, alert: Alert) -> None:
         self.alerts.append(alert)
         console.print(f"[bold red]{alert.message}[/bold red]")
-        self._append_jsonl(alert)
+        if self.alerts_path:
+            self._append_jsonl(alert)
         if self.db_path:
             self._append_sqlite(alert)
 
@@ -116,6 +146,7 @@ class AlertEngine:
                 threshold=alert.threshold,
                 message=alert.message,
                 consecutive_count=alert.consecutive_count,
+                component=alert.component,
             )
         except Exception:
             log.warning("could not write alert to %s", self.db_path, exc_info=True)

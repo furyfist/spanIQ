@@ -26,6 +26,8 @@ CREATE INDEX IF NOT EXISTS idx_timeline_metric ON timeline(metric_name, timestam
 CREATE INDEX IF NOT EXISTS idx_timeline_baseline ON timeline(baseline_id, timestamp);
 """
 
+SIGNAL_PREFIX = "signal."
+
 _ADD_COMPONENT_COLUMN = "ALTER TABLE timeline ADD COLUMN component TEXT NOT NULL DEFAULT 'default'"
 _CREATE_COMPONENT_INDEX = (
     "CREATE INDEX IF NOT EXISTS idx_timeline_component "
@@ -124,6 +126,38 @@ class TimelineStore:
                     json.dumps(metadata) if metadata else None,
                     component,
                 ),
+            )
+
+    def record_signals(
+        self,
+        trace_id: str,
+        baseline_id: str,
+        signals: dict[str, float],
+        timestamp: str,
+        component: str = "default",
+    ) -> None:
+        """Store one trace's signals in a single transaction, as series named signal.<name>."""
+        if not signals:
+            return
+        with self._conn() as conn:
+            conn.executemany(
+                """
+                INSERT INTO timeline
+                  (trace_id, baseline_id, metric_name, score,
+                   threshold, passed, timestamp, metadata, component)
+                VALUES (?, ?, ?, ?, 0.0, 1, ?, NULL, ?)
+                """,
+                [
+                    (
+                        trace_id,
+                        baseline_id,
+                        f"{SIGNAL_PREFIX}{name}",
+                        float(value),
+                        timestamp,
+                        component,
+                    )
+                    for name, value in signals.items()
+                ],
             )
 
     def query(
