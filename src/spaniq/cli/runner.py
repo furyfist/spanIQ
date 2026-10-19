@@ -429,6 +429,45 @@ def _collect_otel(args: argparse.Namespace) -> None:
         print("\nstopped.")
 
 
+def _diff(args: argparse.Namespace) -> None:
+    from spaniq.drift.diff import diff_traces, load_traces
+    from spaniq.drift.report import print_diff, render_markdown
+
+    runs = []
+    for path in (args.baseline, args.candidate):
+        if not os.path.exists(path):
+            raise CLIError(f"trace file not found: {path}")
+        traces = load_traces(path)
+        if not traces:
+            raise CLIError(f"no traces in {path}")
+        runs.append(traces)
+
+    nli = None
+    if args.nli:
+        from spaniq.signals.nli import get_nli
+
+        nli = get_nli()
+    result = diff_traces(
+        runs[0],
+        runs[1],
+        alpha=args.alpha,
+        min_effect=args.min_effect,
+        min_psi=args.min_psi,
+        embeddings=args.embeddings,
+        nli=nli,
+        top_k=args.top,
+    )
+    if args.as_json:
+        print(json.dumps(result.to_dict(), indent=2))
+    else:
+        print_diff(result)
+    if args.markdown:
+        with open(args.markdown, "w", encoding="utf-8") as fh:
+            fh.write(render_markdown(result))
+    if result.drifted and args.fail:
+        sys.exit(1)
+
+
 def _dashboard_launch(args: argparse.Namespace) -> None:
     try:
         import importlib.util
@@ -693,6 +732,43 @@ def _build_parser() -> argparse.ArgumentParser:
     otel_p.add_argument("--alert-after", type=int, default=3, dest="alert_after")
     otel_p.add_argument("--alerts-path", default="alerts.jsonl", dest="alerts_path")
 
+    diff_p = sub.add_parser(
+        "diff",
+        help="compare two runs of traces; exits 1 when the candidate drifted (for CI)",
+    )
+    diff_p.add_argument("baseline", help="JSONL traces of the reference run")
+    diff_p.add_argument("candidate", help="JSONL traces of the run to check")
+    diff_p.add_argument("--alpha", type=float, default=0.01, help="FDR level per unit")
+    diff_p.add_argument(
+        "--min-effect",
+        type=float,
+        default=0.5,
+        dest="min_effect",
+        help="smallest standardised mean shift that counts as drift",
+    )
+    diff_p.add_argument(
+        "--min-psi", type=float, default=0.2, dest="min_psi", help="or smallest PSI that counts"
+    )
+    diff_p.add_argument(
+        "--embeddings",
+        action="store_true",
+        help="also test final outputs for a shift in meaning (loads the embedding model)",
+    )
+    diff_p.add_argument(
+        "--nli",
+        action="store_true",
+        help="add sentence-level NLI groundedness signals (loads the NLI model)",
+    )
+    diff_p.add_argument("--top", type=int, default=10, help="traces to list for review")
+    diff_p.add_argument("--json", action="store_true", dest="as_json", help="print JSON")
+    diff_p.add_argument("--markdown", default=None, help="also write a Markdown report here")
+    diff_p.add_argument(
+        "--no-fail",
+        action="store_false",
+        dest="fail",
+        help="exit 0 even when drift is found",
+    )
+
     # ── dashboard ─────────────────────────────────────────────────────────────
     dash_p = sub.add_parser("dashboard", help="launch the Streamlit local dashboard")
     dash_p.add_argument("--db", default=DEFAULT_DB, help="path to spaniq.db")
@@ -837,6 +913,9 @@ def _dispatch(parser: argparse.ArgumentParser, args: argparse.Namespace) -> None
 
     elif args.command == "collect-otel":
         _collect_otel(args)
+
+    elif args.command == "diff":
+        _diff(args)
 
     elif args.command == "dashboard":
         _dashboard_launch(args)

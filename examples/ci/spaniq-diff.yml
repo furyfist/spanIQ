@@ -1,0 +1,25 @@
+# Fail a pull request when the pipeline's outputs drift from main.
+# Replays the same eval inputs on both branches, then compares the two runs.
+name: spaniq diff
+on: pull_request
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install "spaniq @ git+https://github.com/furyfist/spanIQ"
+      # your script: run the pipeline on eval inputs and write FileCollector JSONL
+      - run: python scripts/run_eval.py --out candidate.jsonl
+      - run: |
+          git checkout ${{ github.event.pull_request.base.sha }}
+          python scripts/run_eval.py --out baseline.jsonl
+          git checkout -
+      - run: spaniq diff baseline.jsonl candidate.jsonl --markdown spaniq-diff.md
+      - if: always()
+        run: cat spaniq-diff.md >> "$GITHUB_STEP_SUMMARY"
