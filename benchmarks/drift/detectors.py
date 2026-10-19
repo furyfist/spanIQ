@@ -9,7 +9,10 @@ the embedding metrics need a model download.
 from __future__ import annotations
 
 from spaniq.core.test_case import LLMTestCase
+from spaniq.drift import WindowDriftDetector
 from spaniq.metrics.output_stability import OutputStabilityMetric
+from spaniq.monitor.trace import Trace
+from spaniq.signals import OUTPUT_UNIT, trace_signals
 
 
 def _component_outputs(record: dict) -> dict[str, str]:
@@ -64,4 +67,58 @@ class LegacyStreakDetector:
         return self._root
 
 
-DETECTORS = {"legacy": LegacyStreakDetector}
+class WindowSignalDetector:
+    """spanIQ 0.5: per-unit signal windows compared with the baseline (spaniq.drift).
+
+    The final output and every component get their own WindowDriftDetector. The
+    blamed component is the most upstream one whose window drifted, since a
+    broken retriever drags the generation step along with it.
+    """
+
+    name = "window"
+
+    def __init__(self, window: int = 100, stride: int = 10) -> None:
+        self.window = window
+        self.stride = stride
+        self._detectors: dict[str, WindowDriftDetector] = {}
+        self._order: list[str] = []
+        self._in_incident = False
+        self._root: str | None = None
+
+    def fit(self, baseline: list[dict]) -> None:
+        per_unit: dict[str, list[dict]] = {}
+        for record in baseline:
+            trace = Trace.from_dict(record)
+            for unit, signals in trace_signals(trace).items():
+                per_unit.setdefault(unit, []).append(signals)
+            for c in trace.components or []:
+                if c.name not in self._order:
+                    self._order.append(c.name)
+        self._detectors = {
+            unit: WindowDriftDetector(rows, window=self.window, stride=self.stride)
+            for unit, rows in per_unit.items()
+        }
+
+    def update(self, record: dict) -> bool:
+        started = []
+        for unit, signals in trace_signals(Trace.from_dict(record)).items():
+            detector = self._detectors.get(unit)
+            if detector is not None and detector.update(signals) is not None:
+                started.append(unit)
+        active = any(d.in_incident for d in self._detectors.values())
+        if started and not self._in_incident:
+            self._in_incident = True
+            drifted = [u for u, d in self._detectors.items() if d.in_incident]
+            self._root = next((u for u in self._order if u in drifted), None) or (
+                OUTPUT_UNIT if OUTPUT_UNIT in drifted else None
+            )
+            return True
+        if not active:
+            self._in_incident = False
+        return False
+
+    def root_cause(self) -> str | None:
+        return self._root
+
+
+DETECTORS = {"legacy": LegacyStreakDetector, "window": WindowSignalDetector}

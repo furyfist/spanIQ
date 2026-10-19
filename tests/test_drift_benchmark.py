@@ -243,3 +243,18 @@ def test_fraction_limits_how_many_traces_change(items):
         for a, b in zip(stream[change_at:], control[change_at:], strict=True)
     )
     assert 0.1 < changed / 400 < 0.6
+
+
+def test_window_detector_catches_a_content_only_change(items):
+    from benchmarks.drift.detectors import WindowSignalDetector
+
+    r = run_scenario(WindowSignalDetector, SCENARIOS["fact_swap"], items, 0)
+    assert r.first_alarm is not None
+    assert r.false_alarms == 0
+
+
+def test_window_detector_quiet_on_control(items):
+    from benchmarks.drift.detectors import WindowSignalDetector
+
+    r = run_scenario(WindowSignalDetector, SCENARIOS["control"], items, 1)
+    assert r.false_alarms == 0
