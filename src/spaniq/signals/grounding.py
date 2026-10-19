@@ -32,12 +32,15 @@ STOPWORDS = frozenset(_STOPWORD_TEXT.split())
 
 
 def _stem(word: str) -> str:
+    """A light suffix stripper so "causes", "caused" and "causing" compare equal."""
     w = word.lower().removesuffix("'s")
     if len(w) > 4 and w.endswith("ies"):
         return w[:-3] + "y"
-    if len(w) > 3 and w.endswith("s") and not w.endswith("ss"):
-        return w[:-1]
-    return w
+    for suffix in ("ing", "ed", "es", "s"):
+        if w.endswith(suffix) and len(w) - len(suffix) >= 3 and not w.endswith("ss"):
+            w = w[: -len(suffix)]
+            break
+    return w.rstrip("e") if len(w) > 4 else w
 
 
 def _numbers(text: str) -> set[str]:

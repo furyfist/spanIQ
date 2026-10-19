@@ -244,6 +244,17 @@ class TimelineStore:
             ).fetchall()
         return [r[0] for r in rows]
 
+    def signal_names(self, pipeline: str | None = None) -> list[str]:
+        """Stored signal series (signal.<name>), optionally only for one pipeline."""
+        sql = "SELECT DISTINCT metric_name FROM timeline WHERE metric_name LIKE ?"
+        params: list = [f"{SIGNAL_PREFIX}%"]
+        if pipeline is not None:
+            sql += " AND baseline_id = ? || '/' || component"
+            params.append(pipeline)
+        with self._conn() as conn:
+            rows = conn.execute(sql + " ORDER BY 1", params).fetchall()
+        return [r[0] for r in rows]
+
     def summary(self, metric_name: str, last_n: int = 200) -> TimelineSummary:
         rows = self.query(metric_name, last_n=last_n, ascending=True)
         if not rows:

@@ -23,7 +23,7 @@ from spaniq.drift.detector import (
     compare,
 )
 from spaniq.monitor.trace import Trace
-from spaniq.signals.extract import OUTPUT_UNIT, trace_signals
+from spaniq.signals.extract import OUTPUT_UNIT, output_repeats_span, trace_signals
 from spaniq.signals.nli import NLIModel
 
 log = logging.getLogger(__name__)
@@ -105,13 +105,6 @@ def _positions(traces: list[Trace]) -> dict[str, float]:
     positions = {name: float(statistics.median(idx)) for name, idx in seen.items()}
     positions[OUTPUT_UNIT] = float("inf")
     return positions
-
-
-def _output_is_a_span(traces: list[Trace]) -> bool:
-    """True when every final output is just one of the trace's component outputs."""
-    return bool(traces) and all(
-        any(c.output == t.output for c in t.components or []) for t in traces
-    )
 
 
 def upstream_root(drifted: list[str], positions: dict[str, float]) -> str | None:
@@ -202,7 +195,7 @@ def diff_traces(
 
     positions = _positions(baseline + candidate)
     shared = set(base_by_unit) & set(cand_by_unit)
-    if len(shared) > 1 and _output_is_a_span(baseline + candidate):
+    if len(shared) > 1 and output_repeats_span(baseline + candidate):
         # the final output repeats a component's output; reporting it twice adds noise
         shared.discard(OUTPUT_UNIT)
     results = []

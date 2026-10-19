@@ -28,6 +28,17 @@ def context_for(trace: Trace) -> str | None:
     return "\n\n".join(sources) or None
 
 
+def output_repeats_span(traces: list[Trace]) -> bool:
+    """True when every final output is just one of its trace's component outputs.
+
+    The "output" unit then duplicates that component, so callers drop it rather
+    than report (or blame) the same text twice.
+    """
+    return bool(traces) and all(
+        any(c.output == t.output for c in t.components or []) for t in traces
+    )
+
+
 def extract(
     output: str, context: str | None = None, nli: NLIModel | None = None
 ) -> dict[str, float]:

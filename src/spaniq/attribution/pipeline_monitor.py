@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from collections import deque
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -8,6 +9,7 @@ from rich.console import Console
 
 from spaniq.attribution.changepoint.cusum import CusumState, cusum_update
 from spaniq.attribution.component import ComponentKind, ComponentSpan
+from spaniq.attribution.drift_attribution import DriftAttribution, attribute_drift
 from spaniq.core.test_case import LLMTestCase
 from spaniq.drift.detector import WindowDriftDetector
 from spaniq.metrics.base import BaseMetric
@@ -67,6 +69,7 @@ class PipelineReport:
     online_alarms: dict[str, dict[str, int]]
     pass_rates: dict[str, dict[str, float]]
     drift_alarms: dict[str, list[int]] = field(default_factory=dict)
+    drift_attributions: list[DriftAttribution] = field(default_factory=list)
 
 
 class PipelineMonitor:
@@ -125,6 +128,10 @@ class PipelineMonitor:
         ]
 
         self._state: dict[str, ComponentOnlineState] = {}
+        self._order: list[str] = []
+        self._recent: deque[dict[str, dict[str, float]]] = deque(maxlen=drift_window or 1)
+        self._attributions: list[DriftAttribution] = []
+        self._incident_open = False
         self._pass_counts: dict[str, dict[str, int]] = {}
         self._total_counts: dict[str, dict[str, int]] = {}
 
@@ -213,11 +220,33 @@ class PipelineMonitor:
         if state.drift_detector is None:
             return
         report = state.drift_detector.update(signals)
-        if report is not None:
-            state.drift_alarms.append(state.trace_count)
-            self.alert_engine.fire_drift(
-                span.name, report, trace.trace_id, trace.timestamp, component=span.name
-            )
+        if report is None:
+            return
+        state.drift_alarms.append(state.trace_count)
+        alert = self.alert_engine.fire_drift(
+            span.name, report, trace.trace_id, trace.timestamp, component=span.name
+        )
+        if self._incident_open:
+            return
+        # first component to trip in this incident: work out which one to blame
+        self._incident_open = True
+        windows = {
+            name: [t[name] for t in self._recent if name in t]
+            for name, s in self._state.items()
+            if s.warmup_signals
+        }
+        baselines = {name: s.warmup_signals for name, s in self._state.items() if s.warmup_signals}
+        attribution = attribute_drift(span.name, report, windows, baselines, self._order)
+        self._attributions.append(attribution)
+        alert.message += f" | {attribution.verdict}"
+        console.print(f"[yellow]attribution:[/yellow] {attribution.verdict}")
+
+    def _close_finished_incident(self) -> None:
+        if self._incident_open and not any(
+            s.drift_detector is not None and s.drift_detector.in_incident
+            for s in self._state.values()
+        ):
+            self._incident_open = False
 
     def _update_cusum(
         self,
@@ -293,6 +322,11 @@ class PipelineMonitor:
             spans = trace.components or [_default_span(trace)]
             units = trace_signals(trace)
             for span in spans:
+                if span.name not in self._order:
+                    self._order.append(span.name)
+            self._recent.append({s.name: units.get(s.name) or units[OUTPUT_UNIT] for s in spans})
+            self._close_finished_incident()
+            for span in spans:
                 signals = units.get(span.name)
                 if signals is None and span.name == "default":
                     signals = units[OUTPUT_UNIT]
@@ -327,4 +361,5 @@ class PipelineMonitor:
                 for comp, state in self._state.items()
                 if state.drift_alarms
             },
+            drift_attributions=list(self._attributions),
         )

@@ -8,11 +8,14 @@ the embedding metrics need a model download.
 
 from __future__ import annotations
 
+from collections import deque
+
+from spaniq.attribution.drift_attribution import attribute_drift
 from spaniq.core.test_case import LLMTestCase
 from spaniq.drift import WindowDriftDetector
 from spaniq.metrics.output_stability import OutputStabilityMetric
 from spaniq.monitor.trace import Trace
-from spaniq.signals import OUTPUT_UNIT, trace_signals
+from spaniq.signals import OUTPUT_UNIT, output_repeats_span, trace_signals
 
 
 def _component_outputs(record: dict) -> dict[str, str]:
@@ -70,9 +73,9 @@ class LegacyStreakDetector:
 class WindowSignalDetector:
     """spanIQ 0.5: per-unit signal windows compared with the baseline (spaniq.drift).
 
-    The final output and every component get their own WindowDriftDetector. The
-    blamed component is the most upstream one whose window drifted, since a
-    broken retriever drags the generation step along with it.
+    The final output and every component get their own WindowDriftDetector.
+    When one trips, spaniq.attribution.drift_attribution re-tests every unit on
+    the traces since the estimated change and blames the most upstream one.
     """
 
     name = "window"
@@ -81,37 +84,50 @@ class WindowSignalDetector:
         self.window = window
         self.stride = stride
         self._detectors: dict[str, WindowDriftDetector] = {}
+        self._baselines: dict[str, list[dict]] = {}
+        self._recent: deque[dict[str, dict]] = deque(maxlen=window)
         self._order: list[str] = []
+        self._skip: set[str] = set()
         self._in_incident = False
         self._root: str | None = None
 
     def fit(self, baseline: list[dict]) -> None:
         per_unit: dict[str, list[dict]] = {}
-        for record in baseline:
-            trace = Trace.from_dict(record)
+        traces = [Trace.from_dict(r) for r in baseline]
+        self._skip = {OUTPUT_UNIT} if output_repeats_span(traces) else set()
+        for trace in traces:
             for unit, signals in trace_signals(trace).items():
+                if unit in self._skip:
+                    continue
                 per_unit.setdefault(unit, []).append(signals)
             for c in trace.components or []:
                 if c.name not in self._order:
                     self._order.append(c.name)
+        self._baselines = per_unit
         self._detectors = {
             unit: WindowDriftDetector(rows, window=self.window, stride=self.stride)
             for unit, rows in per_unit.items()
         }
 
     def update(self, record: dict) -> bool:
-        started = []
-        for unit, signals in trace_signals(Trace.from_dict(record)).items():
+        units = {
+            u: s for u, s in trace_signals(Trace.from_dict(record)).items() if u not in self._skip
+        }
+        self._recent.append(units)
+        started = {}
+        for unit, signals in units.items():
             detector = self._detectors.get(unit)
-            if detector is not None and detector.update(signals) is not None:
-                started.append(unit)
+            if detector is not None and (report := detector.update(signals)) is not None:
+                started[unit] = report
         active = any(d.in_incident for d in self._detectors.values())
         if started and not self._in_incident:
             self._in_incident = True
-            drifted = [u for u, d in self._detectors.items() if d.in_incident]
-            self._root = next((u for u in self._order if u in drifted), None) or (
-                OUTPUT_UNIT if OUTPUT_UNIT in drifted else None
+            trigger, report = next(iter(started.items()))
+            windows = {u: [t[u] for t in self._recent if u in t] for u in self._detectors}
+            attribution = attribute_drift(
+                trigger, report, windows, self._baselines, self._order + [OUTPUT_UNIT]
             )
+            self._root = attribution.root
             return True
         if not active:
             self._in_incident = False

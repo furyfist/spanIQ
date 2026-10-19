@@ -321,6 +321,14 @@ def _attribute(args: argparse.Namespace) -> None:
         )
 
     metrics = [m.__class__.__name__ for m in _metrics_from_names(args.metrics)]
+    if args.signals:
+        signals = store.signal_names(pipeline=args.pipeline)
+        if not signals:
+            raise CLIError(
+                f"no signal series for pipeline '{args.pipeline}' — "
+                "re-run 'spaniq pipeline run' with this version to record them"
+            )
+        metrics += signals
 
     result = attribute(
         timeline=store,
@@ -711,6 +719,11 @@ def _build_parser() -> argparse.ArgumentParser:
     attr_p.add_argument("--pipeline", required=True, help="pipeline name")
     attr_p.add_argument("--last", type=int, default=500)
     attr_p.add_argument("--metrics", default=",".join(DEFAULT_METRICS))
+    attr_p.add_argument(
+        "--signals",
+        action="store_true",
+        help="also run change point detection on every stored signal series",
+    )
     attr_p.add_argument("--json", action="store_true", dest="as_json", help="output JSON")
     attr_p.add_argument("--export", default=None, help="save PNG chart to this path")
     attr_p.add_argument(

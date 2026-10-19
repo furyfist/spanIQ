@@ -1,6 +1,12 @@
 """Per-output signals recorded for every trace and compared across runs by spaniq.drift."""
 
-from spaniq.signals.extract import OUTPUT_UNIT, context_for, extract, trace_signals
+from spaniq.signals.extract import (
+    OUTPUT_UNIT,
+    context_for,
+    extract,
+    output_repeats_span,
+    trace_signals,
+)
 from spaniq.signals.grounding import (
     GROUNDING_SIGNALS,
     RELEVANCE_SIGNALS,
@@ -22,6 +28,7 @@ __all__ = [
     "extract",
     "get_nli",
     "grounding_signals",
+    "output_repeats_span",
     "relevance_signals",
     "split_sentences",
     "text_signals",
