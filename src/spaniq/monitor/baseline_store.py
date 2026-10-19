@@ -3,9 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from uuid import uuid4
+
+from spaniq.monitor._sqlite import connect
 
 _CREATE_BASELINES = """
 CREATE TABLE IF NOT EXISTS baselines (
@@ -65,10 +68,8 @@ class BaselineStore:
         self.db_path = db_path
         self._init_db()
 
-    def _conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _conn(self) -> AbstractContextManager[sqlite3.Connection]:
+        return connect(self.db_path)
 
     def _init_db(self) -> None:
         with self._conn() as conn:
@@ -113,6 +114,11 @@ class BaselineStore:
         return Baseline(**dict(row))
 
     def get_by_name(self, name: str, component: str = "default") -> Baseline:
+        """Latest version of a baseline by name.
+
+        Per-component baselines (from PipelineMonitor) are stored under the name
+        "<name>/<component>"; the default component uses the bare name.
+        """
         lookup = f"{name}/{component}" if component != "default" else name
         with self._conn() as conn:
             row = conn.execute(
@@ -135,10 +141,20 @@ class BaselineStore:
         return Baseline(**dict(row))
 
     def update(self, baseline_id: str, new_outputs: list[str]) -> str:
-        existing = self.get(baseline_id)
-        merged = json.loads(existing.outputs) + new_outputs
-        now = _now()
+        """Append outputs and bump the version.
+
+        The read and the write share one IMMEDIATE transaction, so two concurrent
+        updates cannot both read the old outputs and lose one of the appends.
+        """
         with self._conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                "SELECT outputs FROM baselines WHERE id = ?", (baseline_id,)
+            ).fetchone()
+            if row is None:
+                raise KeyError(f"Baseline not found: {baseline_id}")
+            merged = json.loads(row["outputs"]) + new_outputs
+            now = _now()
             conn.execute(
                 """
                 UPDATE baselines
@@ -158,6 +174,7 @@ class BaselineStore:
         return [BaselineSummary(**dict(r)) for r in rows]
 
     def delete(self, baseline_id: str) -> None:
+        """Delete a baseline and, deliberately, the timeline rows scored against it."""
         with self._conn() as conn:
             conn.execute("DELETE FROM baselines WHERE id = ?", (baseline_id,))
             has_timeline = conn.execute(

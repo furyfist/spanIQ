@@ -85,3 +85,38 @@ def test_prompt_hash_different_for_different_prompts():
     h1 = _prompt_hash("prompt one")
     h2 = _prompt_hash("prompt two")
     assert h1 != h2
+
+
+def test_concurrent_updates_do_not_lose_appends(tmp_path):
+    import threading
+
+    store = BaselineStore(str(tmp_path / "c.db"))
+    bid = store.create(name="c", prompt="p", outputs=["seed"])
+    threads = [threading.Thread(target=store.update, args=(bid, [f"out-{i}"])) for i in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    b = store.get(bid)
+    assert b.n_outputs == 9
+    assert b.version == 9
+
+
+def test_update_missing_baseline_raises(tmp_path):
+    store = BaselineStore(str(tmp_path / "m.db"))
+    with pytest.raises(KeyError):
+        store.update("nope", ["x"])
+
+
+def test_connections_are_closed(tmp_path):
+    """Leaked handles keep the file locked on Windows, so deleting it would fail."""
+    import os
+
+    from spaniq.monitor.timeline_store import TimelineStore
+
+    db = str(tmp_path / "closed.db")
+    store = BaselineStore(db)
+    store.create(name="x", prompt="p", outputs=["a"])
+    store.list_all()
+    TimelineStore(db).alert_count()
+    os.remove(db)

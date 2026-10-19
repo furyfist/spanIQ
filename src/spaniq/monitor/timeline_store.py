@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 
 import numpy as np
+
+from spaniq.monitor._sqlite import connect
 
 _CREATE_TIMELINE = """
 CREATE TABLE IF NOT EXISTS timeline (
@@ -78,10 +81,8 @@ class TimelineStore:
         self.db_path = db_path
         self._init_db()
 
-    def _conn(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    def _conn(self) -> AbstractContextManager[sqlite3.Connection]:
+        return connect(self.db_path)
 
     def _init_db(self) -> None:
         with self._conn() as conn:
