@@ -8,6 +8,7 @@ from __future__ import annotations
 import pathlib
 import time
 
+from benchmarks.config import GROQ_MODEL
 from benchmarks.runners._judge import JudgeError, with_retry
 from benchmarks.runners.spaniq_runner import (
     BenchmarkResult,
@@ -33,7 +34,7 @@ def run_deepeval_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benc
         raise OSError("GROQ_API_KEY not set")
 
     groq_model = GPTModel(
-        model="llama-3.3-70b-versatile",
+        model=GROQ_MODEL,
         api_key=api_key,
         base_url="https://api.groq.com/openai/v1",
     )
@@ -111,7 +112,7 @@ def run_deepeval_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5) 
         raise OSError("GROQ_API_KEY not set")
 
     groq_model = GPTModel(
-        model="llama-3.3-70b-versatile",
+        model=GROQ_MODEL,
         api_key=api_key,
         base_url="https://api.groq.com/openai/v1",
     )

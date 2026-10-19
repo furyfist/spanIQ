@@ -15,6 +15,7 @@ import os
 import pathlib
 import time
 
+from benchmarks.config import GROQ_MODEL
 from benchmarks.runners._cost import token_cost
 from benchmarks.runners._judge import awith_retry
 from benchmarks.runners.spaniq_runner import (
@@ -68,7 +69,7 @@ def _get_ragas_llm():
 
     api_key = os.environ["GROQ_API_KEY"]
     base_url = "https://api.groq.com/openai/v1"
-    model = "llama-3.3-70b-versatile"
+    model = GROQ_MODEL
 
     client = AsyncOpenAI(api_key=api_key, base_url=base_url)
     try:

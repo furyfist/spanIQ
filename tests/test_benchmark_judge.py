@@ -45,3 +45,37 @@ def test_score_from_ten_parses_and_rejects():
         score_from_ten("")
     with pytest.raises(JudgeError):
         score_from_ten("great answer")
+
+
+def test_permanent_client_errors_are_not_retried():
+    class NotFound(Exception):
+        status_code = 404
+
+    calls = {"n": 0}
+
+    def missing_model():
+        calls["n"] += 1
+        raise NotFound("model_not_found")
+
+    with pytest.raises(JudgeError, match="1 attempt"):
+        with_retry(missing_model, base_delay=0.0)
+    assert calls["n"] == 1
+
+
+def test_rate_limits_are_retried():
+    class RateLimited(Exception):
+        status_code = 429
+
+    calls = {"n": 0}
+
+    def limited():
+        calls["n"] += 1
+        raise RateLimited("slow down")
+
+    with pytest.raises(JudgeError):
+        with_retry(limited, attempts=3, base_delay=0.0)
+    assert calls["n"] == 3
+
+
+def test_score_from_ten_finds_score_in_prose():
+    assert score_from_ten("Score: 7") == pytest.approx(0.7)

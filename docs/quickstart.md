@@ -7,7 +7,9 @@ spanIQ gives you deterministic LLM evaluation and production monitoring — no L
 ## Option A: Direct Python (no OTel, no infra)
 
 ```bash
-pip install spaniq
+# spanIQ is not on PyPI yet. Until it is, install from GitHub, and write
+# extras as "spaniq[otel] @ git+https://github.com/furyfist/spanIQ".
+pip install "git+https://github.com/furyfist/spanIQ"
 ```
 
 ```python

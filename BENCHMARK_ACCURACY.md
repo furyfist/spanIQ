@@ -55,10 +55,13 @@ tool (`predictions_from_scores`), so the comparison is fair by construction.
 | Tool | What it scores | Judge model |
 |---|---|---|
 | spaniq | embedding cosine similarity (deterministic, no LLM) | none |
-| groq | LLM-as-judge, 1–10 normalized | `llama-3.3-70b-versatile` via Groq |
-| deepeval | G-Eval correctness | `llama-3.3-70b-versatile` via Groq |
-| ragas | faithfulness (needs context; rag_retrieval only) | `llama-3.3-70b-versatile` via Groq |
-| langfuse | Langfuse-style LLM-as-judge (local replica) | `llama-3.3-70b-versatile` via Groq |
+| groq | LLM-as-judge, 1–10 normalized | `openai/gpt-oss-120b` via Groq |
+| deepeval | G-Eval correctness | `openai/gpt-oss-120b` via Groq |
+| ragas | faithfulness (needs context; rag_retrieval only) | `openai/gpt-oss-120b` via Groq |
+| langfuse | Langfuse-style LLM-as-judge (local replica) | `openai/gpt-oss-120b` via Groq |
+
+The judge model is `benchmarks.config.GROQ_MODEL`; override it with
+`SPANIQ_JUDGE_MODEL`.
 
 ## 4. Datasets (labeled)
 
@@ -103,8 +106,10 @@ spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 5 --metric ac
 cat benchmarks/results/accuracy_summary.md
 ```
 
-Competitor runners skip gracefully if their dependency or `GROQ_API_KEY` is
-missing. The legacy determinism benchmark is still available via
+Competitor runners skip with a printed reason if their dependency or
+`GROQ_API_KEY` is missing, or if a judge call still fails after retrying (for
+example when the daily token quota runs out). A skipped tool has no row; it never
+gets placeholder scores. The legacy determinism benchmark is still available via
 `--metric variance`.
 
 **ragas dependency note.** `ragas>=0.4` imports
@@ -114,20 +119,28 @@ that pin, ragas fails to import and its row silently disappears from the table.
 
 ## 7. Results
 
-Live run on 2026-07-10 (Python 3.12.7, Windows), `GROQ_API_KEY` set, 3 runs per
-tool per dataset, judge `llama-3.3-70b-versatile`. Source:
-`benchmarks/results_accuracy/`.
+Live run on 2026-10-19 (Python 3.12, Windows), 2 runs per tool per dataset, judge
+`openai/gpt-oss-120b` via Groq. Source: `benchmarks/results_accuracy/`.
 
-**`ragas` is absent from this table, and the reason matters.** At the time of the
-run the runner called `single_turn_ascore(sample)`, a method the v0.4 collections
-API does not have. Every call raised `AttributeError`, a bare `except` converted
-each one into the neutral `0.5` fallback, and the tool skipped on an unrelated
-import error. Had it not skipped, it would have reported a full column of
-fabricated `0.5`s as if they were judgments. The runner has since been fixed to
-the real v0.4 API — `ascore(user_input, response, retrieved_contexts)` — and now
-returns genuine scores, and it raises rather than reporting data if every item
-fails. Its row will be filled on the next run with available judge tokens; the
-run above exhausted the Groq free-tier daily token limit.
+**What changed since the 2026-07-10 run, and why the old summarization and
+rag_retrieval rows were withdrawn.** Two defects made those rows meaningless:
+
+- *The judge rows were not judgments.* The July run hit Groq's free-tier daily
+  token limit after qa_factual. Every runner turned a failed call into a neutral
+  `0.5`, so 47 of the 48 judge scores on those two sets were fallbacks, which is
+  why all three judges showed exactly F1 0.667 / AUC 0.500. Runners now retry
+  transient failures and raise when a call still fails, so the tool is skipped
+  with a visible reason instead.
+- *spanIQ's 1.0 was a label leak.* Every good row was the reference answer copied
+  verbatim, so similarity to the reference was exactly 1.0 for every good row.
+  Good rows are now hand-written paraphrases (see `LABELING.md`).
+
+The re-run below hit the same daily token limit after qa_factual, and this time
+the judges on summarization and rag_retrieval were **skipped, not faked**. Their
+rows are pending a run with fresh quota:
+`spaniq benchmark --tool groq,deepeval,ragas,langfuse --dataset summarization,rag_retrieval --runs 2`.
+Groq also retired `llama-3.3-70b-versatile` (calls now return 404), so the judge
+model changed; qa_factual judge numbers are not comparable with the July ones.
 
 ### Table 1 — Accuracy (held-out test fold, positive class = bad)
 
@@ -135,51 +148,43 @@ run above exhausted the Groq free-tier daily token limit.
 |---|---|---|---|---|---|---|---|
 | spaniq | qa_factual | 0.6133 | 0.806 | 0.967 | **0.879** | 0.857 | 0.850 |
 | groq-llm-judge | qa_factual | 0.55 | 1.000 | 1.000 | **1.000** | 1.000 | 1.000 |
-| deepeval | qa_factual | 0.3667 | 1.000 | 0.833 | **0.909** | 0.971 | 0.978 |
-| langfuse | qa_factual | 0.5 | 0.612 | 1.000 | **0.760** | 0.525 | 0.646 |
-| spaniq | summarization | 0.982 | 1.000 | 1.000 | **1.000** | 1.000 | 1.000 |
-| groq-llm-judge | summarization | 0.5 | 0.500 | 1.000 | **0.667** | 0.500 | 0.692 |
-| deepeval | summarization | 0.5 | 0.500 | 1.000 | **0.667** | 0.500 | 0.692 |
-| langfuse | summarization | 0.5 | 0.500 | 1.000 | **0.667** | 0.500 | 0.692 |
-| spaniq | rag_retrieval | 0.9973 | 1.000 | 1.000 | **1.000** | 1.000 | 1.000 |
-| groq-llm-judge | rag_retrieval | 0.5833 | 0.500 | 1.000 | **0.667** | 0.500 | 0.692 |
-| deepeval | rag_retrieval | 0.5 | 0.500 | 1.000 | **0.667** | 0.500 | 0.692 |
-| langfuse | rag_retrieval | 0.5 | 0.500 | 1.000 | **0.667** | 0.500 | 0.692 |
+| deepeval | qa_factual | 0.30 | 1.000 | 1.000 | **1.000** | 1.000 | 1.000 |
+| langfuse | qa_factual | 0.60 | 1.000 | 1.000 | **1.000** | 1.000 | 1.000 |
+| spaniq | summarization | 0.9639 | 0.500 | 1.000 | **0.667** | 0.250 | 0.566 |
+| spaniq | rag_retrieval | 0.9946 | 0.500 | 1.000 | **0.667** | 0.063 | 0.378 |
+| judges | summarization, rag_retrieval | — | — | — | pending | — | — |
 
-**How to read this — the honest reckoning:**
+**How to read this:**
 
-- **On qa_factual (the primary, balanced 100-row set), the LLM judges win on
-  accuracy.** groq-judge caught every bad answer perfectly (F1 1.0); deepeval was
-  strong (F1 0.91, AUC 0.97). spaniq's embedding cosine metric scored **F1 0.88 /
-  AUC 0.86** — good, but it loses to a real judge on wrong-entity answers that are
-  lexically close to the reference ("The capital of France is Berlin" embeds near
-  "Paris" answers). This is the failure mode a statistical metric cannot see and a
-  language model can. langfuse's template was weak here (AUC 0.53, near chance).
-- **On summarization and rag_retrieval (n=8), the LLM judges collapse to F1 0.667
-  / AUC 0.5** — precision 0.5 with recall 1.0 means they flagged *nothing* as bad;
-  they scored every output "good," so at this scale and default config they add no
-  detection signal. spaniq scores these perfectly (F1 1.0) because the omission /
-  hallucination / unfaithful negatives are lexically distinct from the reference.
-  Read these two rows as directional (small n), not as a verdict.
+- **On qa_factual every LLM judge beats spanIQ.** All three caught every bad answer
+  (F1 1.0). spanIQ's embedding similarity scored F1 0.879 / AUC 0.857: it misses
+  wrong-entity answers that are worded like the reference ("The capital of France
+  is Berlin" embeds close to the "Paris" answers).
+- **On summarization and rag_retrieval spanIQ does worse than chance** (AUC 0.25
+  and 0.06). The bad rows are the reference plus an invented clause, or the
+  reference clipped short, so they share more words with the reference than a
+  correct paraphrase does. Similarity to a reference rewards copying, and cannot
+  see an added hallucination. These sets are small (n=8 per class), but the
+  direction is unambiguous.
 
-The takeaway is not "spaniq wins" or "judges win" — it is **complementary**: an
-LLM judge is the right tool for subtle, semantically-close errors (qa_factual);
-a deterministic, free metric is the right tool for gross lexical drift and is the
-only one here that stayed useful when the judges defaulted to passing everything.
+The honest conclusion: spanIQ's metrics are not a substitute for an LLM judge at
+deciding whether an individual answer is right. What they offer is a
+deterministic, free signal of *change* against a baseline (drift, structural
+shifts, a component breaking in a pipeline), which is what the monitoring and
+attribution layers use them for.
 
 ### Table 2 — Determinism sidebar (std dev of per-run mean score)
 
 | Tool | qa_factual | summarization | rag_retrieval |
 |---|---|---|---|
 | spaniq | 0.0000 | 0.0000 | 0.0000 |
-| groq-llm-judge | 0.0000 | 0.0000 | 0.0147 |
-| deepeval | 0.0681 | 0.0000 | 0.0000 |
-| langfuse | 0.0024 | 0.0000 | 0.0000 |
+| groq-llm-judge | 0.0000 | pending | pending |
+| deepeval | 0.0495 | pending | pending |
+| langfuse | 0.0000 | pending | pending |
 
-spaniq is `0.0000` everywhere by construction. The judges are *mostly*
-deterministic at `temperature=0` but not always (deepeval on qa_factual, groq on
-rag_retrieval) — which is exactly why the old "judges vary every run" headline was
-wrong and this benchmark leads with accuracy instead.
+spaniq is `0.0000` everywhere by construction. The judges are mostly
+deterministic at `temperature=0` but not always (deepeval on qa_factual), which is
+why this benchmark leads with accuracy rather than determinism.
 
 ## 8. Audit trail
 
@@ -196,14 +201,14 @@ table is computed from anything not in that file.
 
 ## 9. Fairness and limitations
 
-0. **Neutral fallbacks can fake data.** Every LLM-judge runner degrades a failed
-   item to a neutral `0.5`. That is fine for a transient timeout and dangerous for
-   a broken integration: the ragas runner once failed on *every* call and would
-   have reported a full column of `0.5`s as judgments. The ragas prediction path
-   now raises when all items fail. Treat any tool whose scores are uniformly
-   `0.5` as broken, not as evidence.
+0. **Neutral fallbacks faked data, and no longer exist.** Runners used to turn a
+   failed call into a neutral `0.5`; under rate limiting that produced whole
+   columns of fake scores (the withdrawn July summarization / rag rows). Every
+   runner now retries with backoff and raises `JudgeError` if a call still fails,
+   and the tool is skipped. Treat any tool whose scores are uniformly `0.5` as
+   broken, not as evidence.
 1. **Default configs.** Competitors run on defaults; a tuned setup may differ.
-2. **Same judge model for all LLM tools** (`llama-3.3-70b-versatile` via Groq), to
+2. **Same judge model for all LLM tools** (`openai/gpt-oss-120b` via Groq), to
    isolate the framework's contribution from the model's.
 3. **Small datasets** for two of three sets — read summarization / rag_retrieval
    as directional.
@@ -213,12 +218,14 @@ table is computed from anything not in that file.
 5. **spanIQ measures similarity, not semantics.** On failures that are lexically
    close to the reference but semantically wrong, an LLM judge may win. The table
    is where that shows up honestly.
-6. **Complementary, not interchangeable.** If the question is "was this answer
-   helpful/subtle-correct?", an LLM judge is the right tool. If it is "has this
-   drifted / is it grossly wrong, deterministically and for free?", spanIQ is.
+6. **Complementary, not interchangeable.** If the question is "is this answer
+   correct?", an LLM judge is the right tool, and this benchmark shows it. If it
+   is "has this output distribution changed against its baseline,
+   deterministically and for free?", spanIQ is.
 
 ## 10. Version history
 
 | Date | Change |
 |---|---|
 | 2026-07-10 | Initial accuracy benchmark: 5 tools, labeled 100/16/16 datasets, calibration/test split, precision/recall/F1/AUC. Replaces the determinism headline. |
+| 2026-10-19 | Withdrew the summarization / rag_retrieval rows (judge rows were rate-limit fallbacks, spaniq's 1.0 was a label leak). Runners fail loudly, good rows are paraphrases, judge model is `openai/gpt-oss-120b`. Judge rows for the two small sets pending fresh quota. |

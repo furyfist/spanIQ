@@ -15,6 +15,7 @@ import os
 import pathlib
 import time
 
+from benchmarks.config import GROQ_MODEL
 from benchmarks.runners._cost import token_cost
 from benchmarks.runners._judge import JudgeError, awith_retry
 from benchmarks.runners.spaniq_runner import (
@@ -110,7 +111,7 @@ def _get_client():
         api_key=os.environ["GROQ_API_KEY"],
         base_url="https://api.groq.com/openai/v1",
     )
-    return client, "llama-3.3-70b-versatile"
+    return client, GROQ_MODEL
 
 
 def run_langfuse_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> BenchmarkResult:

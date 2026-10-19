@@ -6,14 +6,15 @@
 
 **Deterministic LLM evaluation and production monitoring. $0/trace. No LLM judge.**
 
-1,000 test cases × 3 metrics → **$0.00** and **4 seconds** instead of **$34.20** and **9,000 API calls**.
+1,000 test cases × 3 metrics → **$0.00** and **no API calls**, instead of **9,000 LLM-judge calls**. Runs locally on CPU.
 
 ---
 
 ## Get your first signal in 2 minutes
 
 ```bash
-pip install spaniq
+# not on PyPI yet; install from GitHub
+pip install "git+https://github.com/furyfist/spanIQ"
 ```
 
 ```python
@@ -33,15 +34,15 @@ result = evaluate([tc], [SemanticSimilarityMetric()])
 Or with OTel (zero code changes to your app):
 
 ```bash
-pip install "spaniq[otel]"
+pip install "spaniq[otel] @ git+https://github.com/furyfist/spanIQ"
 spaniq collect-otel --baseline my_baseline
-# point your OTel exporter to localhost:4317
+# point your OTel exporter to localhost:4317 (gRPC) or localhost:4318/v1/traces (HTTP)
 ```
 
 Then see your data:
 
 ```bash
-pip install "spaniq[dashboard]"
+pip install "spaniq[dashboard] @ git+https://github.com/furyfist/spanIQ"
 spaniq dashboard
 # opens http://localhost:8501
 ```
@@ -51,25 +52,32 @@ spaniq dashboard
 ## The benchmark table
 
 *Accuracy at catching bad outputs on a labeled 100-row QA set (positive class =
-bad; thresholds calibrated on a held-out fold). Live run, 2026-07-10.*
+bad; thresholds calibrated on a held-out fold). Live run, 2026-10-19, judge
+`openai/gpt-oss-120b` via Groq.*
 
 | Tool | Precision | Recall | F1 | ROC-AUC | Cost / trace | Deterministic |
 |------|-----------|--------|----|---------|--------------|---------------|
 | Groq LLM judge | 1.000 | 1.000 | **1.000** | 1.000 | paid | usually, at temp 0 |
-| deepeval (G-Eval) | 1.000 | 0.833 | **0.909** | 0.971 | paid | usually, at temp 0 |
+| deepeval (G-Eval) | 1.000 | 1.000 | **1.000** | 1.000 | paid | usually, at temp 0 |
+| langfuse-style | 1.000 | 1.000 | **1.000** | 1.000 | paid | usually, at temp 0 |
 | **spanIQ** | 0.806 | 0.967 | **0.879** | 0.857 | **$0.00** | ✅ by construction |
-| langfuse-style | 0.612 | 1.000 | **0.760** | 0.525 | paid | usually, at temp 0 |
 
-**The honest read:** on subtle, lexically-close wrong answers, a real LLM judge
-beats spanIQ's embedding metric on accuracy — and we say so. spanIQ's edge is
-being **deterministic and $0/trace by construction**, and staying useful where
-judges default to passing everything (on the summarization / RAG sets the judges
-collapse to F1 0.667 while spanIQ scores 1.0). They are complementary. Full
-tables, the fairness rule, and a per-item audit trail:
-[`BENCHMARK_ACCURACY.md`](BENCHMARK_ACCURACY.md).
+**The honest read:** at deciding whether one answer is right, an LLM judge beats
+spanIQ's embedding similarity, and on the small summarization / RAG sets spanIQ
+does worse than chance, because an answer that copies the reference and adds a
+hallucination looks *more* similar than a correct paraphrase. spanIQ is not a
+judge replacement. Its job is a deterministic, $0 signal of *change* against a
+baseline (drift, structural shifts, which pipeline component broke first).
 
-> Run this yourself: `spaniq benchmark --tool spaniq --runs 5 --metric accuracy`
-> Full suite (Groq key): `spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 5 --metric accuracy`
+An earlier version of this table (2026-07-10) claimed spanIQ scored 1.0 on
+summarization / RAG while the judges collapsed. That was wrong: the judge rows
+were rate-limit fallbacks recorded as `0.5`, and spanIQ's score was a label leak.
+Both are fixed. Full tables, the fairness rule, the correction and a per-item
+audit trail: [`BENCHMARK_ACCURACY.md`](BENCHMARK_ACCURACY.md).
+
+> The benchmark runs from a source checkout: `git clone https://github.com/furyfist/spanIQ && cd spanIQ && pip install -e ".[benchmark]"`, then
+> `spaniq benchmark --tool spaniq --runs 5 --metric accuracy` (no key needed), or
+> `spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 5 --metric accuracy` with `GROQ_API_KEY`.
 
 ---
 
@@ -105,14 +113,14 @@ V4 adds one collector at the bottom and one visualization layer at the top. The 
 
 ### V1 — Deterministic evaluation
 - `SemanticSimilarityMetric` — cosine similarity with sentence-transformers
-- `OutputStabilityMetric` — distributional consistency against a reference sample
-- `ConsistencyMetric` — self-consistency across paraphrased prompts
-- `ResponseDriftMetric` — statistical drift detection (PSI, KS, JS divergence)
+- `OutputStabilityMetric` — how far an output's length and structure fall outside the baseline's range
+- `ConsistencyMetric` — one-sided KS test: is an output further from the baseline than baseline outputs are from each other
+- `ResponseDriftMetric` — vocabulary drift against the baseline (Population Stability Index)
 
 ### V2 — Production monitoring
 - `Monitor` — stream traces from file, Langfuse, or SDK; score against baseline
 - `TimelineStore` — SQLite-backed score time series with trend analysis
-- `AlertEngine` — consecutive-failure alerts with JSONL + SQLite logging
+- `AlertEngine` — one alert per consecutive-failure incident, logged to JSONL and SQLite (shown in the dashboard)
 - Collectors: `FileCollector`, `LangfuseCollector`, `SDKCollector`
 
 ### V3 — Root-cause attribution
@@ -133,23 +141,16 @@ V4 adds one collector at the bottom and one visualization layer at the top. The 
 ## Install
 
 ```bash
-# Core eval + monitoring
-pip install spaniq
+# Not on PyPI yet. From GitHub (add extras in brackets):
+pip install "spaniq @ git+https://github.com/furyfist/spanIQ"           # core eval + monitoring
+pip install "spaniq[viz] @ git+https://github.com/furyfist/spanIQ"      # PNG chart export (matplotlib)
+pip install "spaniq[otel] @ git+https://github.com/furyfist/spanIQ"     # OTel receiver
+pip install "spaniq[dashboard] @ git+https://github.com/furyfist/spanIQ" # local dashboard
+pip install "spaniq[groq] @ git+https://github.com/furyfist/spanIQ"     # Groq baseline collection
+pip install "spaniq[all] @ git+https://github.com/furyfist/spanIQ"      # everything
 
-# OTel receiver
-pip install "spaniq[otel]"
-
-# Local dashboard
-pip install "spaniq[dashboard]"
-
-# Benchmark suite
-pip install "spaniq[benchmark]"
-
-# Groq baseline collection
-pip install "spaniq[groq]"
-
-# Everything
-pip install "spaniq[all]"
+# Benchmark suite: needs a source checkout (datasets are not in the wheel)
+git clone https://github.com/furyfist/spanIQ && cd spanIQ && pip install -e ".[benchmark]"
 ```
 
 ---
@@ -164,7 +165,8 @@ spaniq baseline show my_baseline
 
 # Production monitoring
 spaniq monitor run --baseline my_baseline --source file --path traces.jsonl
-spaniq collect-otel --baseline my_baseline   # NEW: OTel receiver
+spaniq collect-otel --baseline my_baseline   # OTel receiver (localhost; --host 0.0.0.0 for remote)
+spaniq collect-otel --store-only --traces-path otel_traces.jsonl   # ingest only, replay later
 
 # Timeline inspection
 spaniq timeline show --metric ResponseDriftMetric
@@ -173,6 +175,7 @@ spaniq timeline export --metric ResponseDriftMetric --output chart.png
 
 # Pipeline attribution (V3)
 spaniq pipeline run --name my_pipeline --path traces.jsonl
+spaniq pipeline status --name my_pipeline
 spaniq attribute --pipeline my_pipeline --last 500
 
 # Dashboard (V4)
@@ -212,4 +215,4 @@ spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 3 --metric ac
 
 ## License
 
-Apache 2.0
+Apache 2.0, see [`LICENSE`](LICENSE).

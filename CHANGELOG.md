@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased — correctness and honesty pass
+
+### Benchmark
+
+- **The summarization and RAG results published with v0.4.0 were invalid.** The LLM-judge rows were not judgments: under Groq rate limiting every failed call was recorded as a neutral `0.5`, so 47 of the 48 judge scores on those two sets were fallbacks. spanIQ's F1 1.0 was a label leak: every good row was the reference answer copied verbatim, so similarity scored it exactly 1.0. Both are fixed and the tables were re-run (see `BENCHMARK_ACCURACY.md`).
+- Judge runners retry transient failures with backoff and raise instead of fabricating a score; a tool whose calls keep failing is skipped with a visible message. Permanent 4xx errors are not retried.
+- Good summarization / RAG rows are hand-written paraphrases of the reference.
+- Groq retired `llama-3.3-70b-versatile`; the judge model is now `openai/gpt-oss-120b`, overridable with `SPANIQ_JUDGE_MODEL`.
+
+### Fixed
+
+- Alerts are written to SQLite, so the dashboard Alert Log shows them; a failure streak raises one alert instead of one per trace (`repeat_every` re-alerts during long incidents). Importing the alerting module no longer rewraps `sys.stdout`.
+- SQLite connections are closed, use WAL and a busy timeout; `BaselineStore.update` is atomic.
+- OTel receiver: thread-safe trace assembly, real OTel trace IDs, ISO timestamps, OTLP/HTTP protobuf and gzip, 4xx on bad payloads, bind errors raised at start, localhost bind by default (`--host`), late child spans kept via a short root grace period, current `gen_ai.input/output.messages` attributes read.
+- Langfuse collector reads every page and no longer repeats the boundary observation; message lists become text instead of a Python repr. File collector in tail mode waits for partial lines.
+- `ConsistencyMetric` uses a one-sided KS test with a sample-size-aware critical value (the old fixed 0.05 failed nearly every output). `OutputStabilityMetric` grades how far each structural feature falls outside the baseline range instead of a near-binary JS value. Baseline embeddings are cached; the model loads once under concurrency and is configurable via `SPANIQ_EMBEDDING_MODEL`. `evaluate()` keeps duplicate test case objects.
+- Attribution aligns component breaks by trace ID and filters by pipeline; online CUSUM is calibrated from observed scores. The unused rolling window (`window_size`, `--window`) is removed.
+- CLI: `--store-only` stores traces as JSONL, `--baseline` is optional with it, `attribute --pipeline` and `pipeline status --name` are honoured, unknown `--metrics` names are rejected, `--db` works after the subcommand, and common failures print one-line errors instead of tracebacks.
+- Dashboard Overview no longer sleeps and reruns forever; auto-refresh is a toggle.
+
+### Packaging
+
+- Added the Apache-2.0 `LICENSE` file.
+- Generated demo outputs moved to `docs/demo_output` and excluded from the wheel; demos write to `./spaniq_demo_output`.
+- `matplotlib` moved to the new `viz` extra. `opentelemetry-proto` added to the `otel` extra.
+- CI tests Python 3.10, 3.11 and 3.12 and checks the wheel contents.
+- `spaniq` exports `BaseMetric`, `Monitor`, `TimelineStore`, the collectors, `PipelineMonitor` and `attribute` (lazily).
+
 ## v0.4.0 — OTel collector, Streamlit dashboard, determinism benchmark
 
 ### New

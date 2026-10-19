@@ -10,6 +10,7 @@ import os
 import pathlib
 import time
 
+from benchmarks.config import GROQ_MODEL
 from benchmarks.runners._judge import score_from_ten, with_retry
 from benchmarks.runners.spaniq_runner import (
     BenchmarkResult,
@@ -31,7 +32,7 @@ Respond with ONLY a single integer from 1 to 10. No explanation."""
 
 
 def run_groq_eval(
-    dataset_path: str | pathlib.Path, n_runs: int = 5, model: str = "llama-3.3-70b-versatile"
+    dataset_path: str | pathlib.Path, n_runs: int = 5, model: str = GROQ_MODEL
 ) -> BenchmarkResult:
     """Run Groq LLM-as-judge evaluation N times on the dataset."""
     try:
@@ -63,7 +64,7 @@ def run_groq_eval(
                 lambda p=prompt: client.chat.completions.create(
                     model=model,
                     messages=[{"role": "user", "content": p}],
-                    max_tokens=5,
+                    max_tokens=1024,
                     temperature=0.0,
                 )
             )
@@ -95,7 +96,7 @@ def _score_row(client, model, row) -> float:
         lambda: client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=5,
+            max_tokens=1024,
             temperature=0.0,
         )
     )
@@ -103,7 +104,7 @@ def _score_row(client, model, row) -> float:
 
 
 def run_groq_predictions(
-    dataset_path: str | pathlib.Path, n_runs: int = 5, model: str = "llama-3.3-70b-versatile"
+    dataset_path: str | pathlib.Path, n_runs: int = 5, model: str = GROQ_MODEL
 ) -> LabeledResult:
     """Groq LLM-as-judge on a labeled dataset, returning per-item predictions."""
     try:

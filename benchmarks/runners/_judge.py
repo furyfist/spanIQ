@@ -9,6 +9,7 @@ skipped with a visible message instead.
 from __future__ import annotations
 
 import asyncio
+import re
 import time
 from collections.abc import Awaitable, Callable
 from typing import TypeVar
@@ -21,6 +22,12 @@ BASE_DELAY_SEC = 2.0
 
 class JudgeError(RuntimeError):
     """A judge call failed for good, or returned something that is not a score."""
+
+
+def _permanent(exc: Exception) -> bool:
+    """A 4xx other than timeout/conflict/rate limit will fail the same way again."""
+    status = getattr(exc, "status_code", None)
+    return isinstance(status, int) and 400 <= status < 500 and status not in (408, 409, 429)
 
 
 def with_retry(
@@ -38,9 +45,11 @@ def with_retry(
             return call()
         except Exception as exc:
             last = exc
+            if _permanent(exc):
+                break
             if i < attempts - 1:
                 sleep(base_delay * 2**i)
-    raise JudgeError(f"judge call failed after {attempts} attempts: {last}") from last
+    raise JudgeError(f"judge call failed after {i + 1} attempt(s): {last}") from last
 
 
 async def awith_retry(
@@ -57,15 +66,16 @@ async def awith_retry(
             return await call()
         except Exception as exc:
             last = exc
+            if _permanent(exc):
+                break
             if i < attempts - 1:
                 await asyncio.sleep(base_delay * 2**i)
-    raise JudgeError(f"judge call failed after {attempts} attempts: {last}") from last
+    raise JudgeError(f"judge call failed after {i + 1} attempt(s): {last}") from last
 
 
 def score_from_ten(raw: str) -> float:
-    """Parse a leading 1-10 integer into a 0-1 score, raising JudgeError if absent."""
-    try:
-        value = float(raw.strip().split()[0])
-    except (IndexError, ValueError) as exc:
-        raise JudgeError(f"judge returned no score: {raw!r}") from exc
-    return max(0.0, min(1.0, value / 10.0))
+    """Parse the first 1-10 integer into a 0-1 score, raising JudgeError if absent."""
+    match = re.search(r"\b(10|[1-9])\b", raw)
+    if match is None:
+        raise JudgeError(f"judge returned no score: {raw!r}")
+    return int(match.group(1)) / 10.0
