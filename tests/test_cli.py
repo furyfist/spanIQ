@@ -73,3 +73,18 @@ def test_public_imports():
             ConsistencyMetric,
         ]
     )
+
+
+def test_monitoring_api_exported_lazily():
+    import subprocess
+    import sys
+
+    import spaniq
+
+    for name in spaniq._LAZY:
+        assert getattr(spaniq, name) is not None, name
+    assert "BaseMetric" in spaniq.__all__
+    # importing the package must not pull in the stores or changepoint code
+    code = "import sys, spaniq; print('spaniq.monitor.timeline_store' in sys.modules, 'ruptures' in sys.modules)"
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.split() == ["False", "False"]

@@ -49,13 +49,10 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-st.sidebar.image(
-    "https://img.shields.io/badge/spanIQ-v0.4-blue?style=flat-square",
-    use_column_width=False,
-)
+st.sidebar.image("https://img.shields.io/badge/spanIQ-v0.4-blue?style=flat-square")
 st.sidebar.markdown("### Navigation")
 page = st.sidebar.radio(
-    "",
+    "Page",
     ["Overview", "Drift Timeline", "Attribution", "Alert Log"],
     label_visibility="collapsed",
 )

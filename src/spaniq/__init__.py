@@ -21,9 +21,35 @@ def assert_eval(test_case: LLMTestCase, metrics: list[BaseMetric]) -> None:
         raise AssertionError(f"Metrics failed: {', '.join(failures)}")
 
 
+# Monitoring and attribution pull in SQLite stores and ruptures, so they load on
+# first access instead of on "import spaniq".
+_LAZY = {
+    "Monitor": "spaniq.monitor.monitor",
+    "Trace": "spaniq.monitor.trace",
+    "BaselineStore": "spaniq.monitor.baseline_store",
+    "TimelineStore": "spaniq.monitor.timeline_store",
+    "AlertEngine": "spaniq.monitor.alerting",
+    "FileCollector": "spaniq.monitor.collectors.file",
+    "SDKCollector": "spaniq.monitor.collectors.sdk",
+    "LangfuseCollector": "spaniq.monitor.collectors.langfuse",
+    "OTelCollector": "spaniq.monitor.collectors.otel",
+    "PipelineMonitor": "spaniq.attribution.pipeline_monitor",
+    "attribute": "spaniq.attribution.attributor",
+}
+
+
+def __getattr__(name: str):
+    if name in _LAZY:
+        import importlib
+
+        return getattr(importlib.import_module(_LAZY[name]), name)
+    raise AttributeError(f"module 'spaniq' has no attribute {name!r}")
+
+
 __all__ = [
     "evaluate",
     "assert_eval",
+    "BaseMetric",
     "LLMTestCase",
     "EvalResult",
     "MetricResult",
@@ -33,4 +59,5 @@ __all__ = [
     "SemanticSimilarityMetric",
     "OutputStabilityMetric",
     "ConsistencyMetric",
+    *_LAZY,
 ]

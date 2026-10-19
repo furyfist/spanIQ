@@ -4,6 +4,9 @@ from spaniq.monitor.trace import Trace
 __all__ = [
     "BaselineStore",
     "Trace",
+    "Monitor",
+    "TimelineStore",
+    "SDKCollector",
 ]
 
 

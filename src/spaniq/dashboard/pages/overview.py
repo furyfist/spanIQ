@@ -60,7 +60,9 @@ def render(config: DashboardConfig) -> None:
     st.subheader("Recent ingestion rate")
     _render_ingestion_chart(store)
 
-    if config.refresh_interval > 0:
+    # Opt-in: refreshing unconditionally blocked every render for the interval
+    # and reran the page forever.
+    if config.refresh_interval > 0 and st.sidebar.toggle("Auto-refresh", value=False):
         import time
 
         st.caption(f"Auto-refreshing every {config.refresh_interval}s")
