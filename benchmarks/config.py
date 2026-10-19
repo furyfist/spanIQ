@@ -7,6 +7,7 @@ import pathlib
 
 DATASETS_DIR = pathlib.Path(__file__).parent / "datasets"
 RESULTS_DIR = pathlib.Path(__file__).parent / "results"
+DRIFT_RESULTS_DIR = pathlib.Path(__file__).parent / "results_drift"
 
 # Groq retired llama-3.3-70b-versatile (calls now 404 model_not_found), which is
 # what the July 2026 judge rows were run with. Override with SPANIQ_JUDGE_MODEL.

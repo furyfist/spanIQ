@@ -51,6 +51,13 @@ def _metrics_from_names(spec: str) -> list:
     return metrics
 
 
+def _split(spec: str | None) -> list[str] | None:
+    """Comma-separated CLI list; None or empty means the default set."""
+    if not spec:
+        return None
+    return [part.strip() for part in spec.split(",") if part.strip()] or None
+
+
 def _read_baseline_file(path: str) -> list[str]:
     """Outputs from a JSONL file of {"output": ...} objects, or plain text lines."""
     outputs: list[str] = []
@@ -452,7 +459,7 @@ def _dashboard_launch(args: argparse.Namespace) -> None:
 
 def _benchmark_run(args: argparse.Namespace) -> None:
     try:
-        from benchmarks.run_benchmark import main as bench_main
+        import benchmarks  # noqa: F401
     except ImportError as exc:
         # benchmarks/ (datasets, runners) is not part of the installed wheel
         raise CLIError(
@@ -461,12 +468,28 @@ def _benchmark_run(args: argparse.Namespace) -> None:
             'pip install -e ".[benchmark]" && spaniq benchmark ...'
             f" ({exc})"
         ) from exc
+    if args.suite == "drift":
+        from benchmarks.drift.run import main as drift_main
+
+        try:
+            drift_main(
+                detectors=_split(args.detectors),
+                scenarios=_split(args.scenarios),
+                runs=args.runs,
+                output_dir=args.output or "benchmarks/results_drift",
+                live=args.live,
+            )
+        except ValueError as exc:
+            raise CLIError(str(exc)) from exc
+        return
+    from benchmarks.run_benchmark import main as bench_main
+
     bench_main(
         tools=[t.strip() for t in args.tool.split(",")],
         datasets=[d.strip() for d in args.dataset.split(",")],
         runs=args.runs,
         setup_only=args.setup,
-        output_dir=args.output,
+        output_dir=args.output or "benchmarks/results",
         metric=args.metric,
     )
 
@@ -658,7 +681,14 @@ def _build_parser() -> argparse.ArgumentParser:
     dash_p.add_argument("--port", type=int, default=8501, help="Streamlit port")
 
     # ── benchmark ─────────────────────────────────────────────────────────────
-    bench_p = sub.add_parser("benchmark", help="run the accuracy benchmark suite")
+    bench_p = sub.add_parser("benchmark", help="run a benchmark suite")
+    bench_p.add_argument(
+        "--suite",
+        default="accuracy",
+        choices=["accuracy", "drift"],
+        help="accuracy: labeled good/bad outputs (default); "
+        "drift: detect injected pipeline changes and blame the right component",
+    )
     bench_p.add_argument(
         "--tool",
         default="spaniq",
@@ -680,7 +710,18 @@ def _build_parser() -> argparse.ArgumentParser:
         "--setup", action="store_true", help="download and cache benchmark datasets, then exit"
     )
     bench_p.add_argument(
-        "--output", default="benchmarks/results", help="directory to write results"
+        "--output",
+        default=None,
+        help="directory to write results (default: benchmarks/results_<suite>)",
+    )
+    bench_p.add_argument(
+        "--detectors", default=None, help="drift suite: comma-separated detectors (default: all)"
+    )
+    bench_p.add_argument(
+        "--scenarios", default=None, help="drift suite: comma-separated scenarios (default: all)"
+    )
+    bench_p.add_argument(
+        "--live", action="store_true", help="drift suite: generate streams with real model calls"
     )
 
     # ── demo ──────────────────────────────────────────────────────────────────
