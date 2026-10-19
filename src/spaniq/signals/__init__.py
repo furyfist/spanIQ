@@ -7,15 +7,20 @@ from spaniq.signals.grounding import (
     grounding_signals,
     relevance_signals,
 )
+from spaniq.signals.nli import NLI_SIGNALS, CrossEncoderNLI, check_groundedness, get_nli
 from spaniq.signals.text import TEXT_SIGNALS, split_sentences, text_signals
 
 __all__ = [
+    "CrossEncoderNLI",
     "GROUNDING_SIGNALS",
+    "NLI_SIGNALS",
     "OUTPUT_UNIT",
     "RELEVANCE_SIGNALS",
     "TEXT_SIGNALS",
+    "check_groundedness",
     "context_for",
     "extract",
+    "get_nli",
     "grounding_signals",
     "relevance_signals",
     "split_sentences",

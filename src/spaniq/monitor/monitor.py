@@ -18,6 +18,7 @@ from spaniq.monitor.baseline_store import BaselineStore
 from spaniq.monitor.collectors.base import BaseCollector
 from spaniq.monitor.timeline_store import TimelineStore
 from spaniq.monitor.trace import Trace
+from spaniq.signals.extract import context_for
 
 console = Console()
 
@@ -105,6 +106,7 @@ class Monitor:
             input=trace.input,
             actual_output=trace.output,
             baseline_outputs=self._baseline_outputs,
+            retrieval_context=[context] if (context := context_for(trace)) else None,
         )
         mr_list = []
         for metric in self.metrics:

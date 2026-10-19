@@ -3,6 +3,7 @@ from spaniq.core.evaluate import evaluate
 from spaniq.core.test_case import LLMTestCase
 from spaniq.metrics.base import BaseMetric
 from spaniq.metrics.consistency import ConsistencyMetric
+from spaniq.metrics.groundedness import GroundednessMetric, UnsupportedClaimsMetric
 from spaniq.metrics.output_stability import OutputStabilityMetric
 from spaniq.metrics.response_drift import ResponseDriftMetric
 from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
@@ -59,5 +60,7 @@ __all__ = [
     "SemanticSimilarityMetric",
     "OutputStabilityMetric",
     "ConsistencyMetric",
+    "GroundednessMetric",
+    "UnsupportedClaimsMetric",
     *_LAZY,
 ]

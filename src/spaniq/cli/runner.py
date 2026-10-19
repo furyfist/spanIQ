@@ -23,6 +23,7 @@ class CLIError(Exception):
 def _metrics_from_names(spec: str) -> list:
     """Metric instances from a comma-separated list; accepts "ResponseDrift" or "ResponseDriftMetric"."""
     from spaniq.metrics.consistency import ConsistencyMetric
+    from spaniq.metrics.groundedness import GroundednessMetric, UnsupportedClaimsMetric
     from spaniq.metrics.output_stability import OutputStabilityMetric
     from spaniq.metrics.response_drift import ResponseDriftMetric
     from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
@@ -34,6 +35,8 @@ def _metrics_from_names(spec: str) -> list:
             SemanticSimilarityMetric,
             OutputStabilityMetric,
             ConsistencyMetric,
+            GroundednessMetric,
+            UnsupportedClaimsMetric,
         )
     }
     metrics = []
