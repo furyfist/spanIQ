@@ -33,19 +33,23 @@ class FileCollector(BaseCollector):
 
     def collect(self) -> Iterator[Trace]:
         with open(self.path, encoding="utf-8") as fh:
-            for line in fh:
-                trace = self._parse_line(line)
-                if trace is not None:
-                    yield trace
-            if self.tail:
-                while True:
-                    line = fh.readline()
-                    if line:
-                        trace = self._parse_line(line)
-                        if trace is not None:
-                            yield trace
-                    else:
-                        time.sleep(self.interval)
+            # In tail mode a writer may be mid-line; hold the fragment until its
+            # newline arrives instead of parsing it as a malformed line.
+            pending = ""
+            while True:
+                line = fh.readline()
+                if line:
+                    pending += line
+                    if self.tail and not pending.endswith("\n"):
+                        continue
+                    trace = self._parse_line(pending)
+                    pending = ""
+                    if trace is not None:
+                        yield trace
+                elif self.tail:
+                    time.sleep(self.interval)
+                else:
+                    return
 
     def _parse_line(self, line: str) -> Trace | None:
         line = line.strip()

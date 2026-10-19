@@ -167,3 +167,71 @@ def test_langfuse_collector_yields_traces_from_mock():
     assert collected[0].output == "4"
     assert collected[0].trace_id == "trace-abc"
     assert collected[0].metadata["model"] == "gpt-4"
+
+
+def _obs(i, start):
+    from datetime import datetime, timezone
+
+    o = MagicMock()
+    o.id = f"obs-{i}"
+    o.trace_id = f"trace-{i}"
+    o.input = [
+        {"role": "system", "content": "be brief"},
+        {"role": "user", "content": f"question {i}"},
+    ]
+    o.output = {"role": "assistant", "content": f"answer {i}"}
+    o.model = "m"
+    o.start_time = datetime(2026, 1, 1, 0, 0, start, tzinfo=timezone.utc)
+    return o
+
+
+def _resp(data):
+    r = MagicMock()
+    r.data = data
+    r.meta.total_pages = None
+    return r
+
+
+def test_langfuse_reads_every_page_and_extracts_message_text():
+    from spaniq.monitor.collectors.langfuse import LangfuseCollector
+
+    collector = LangfuseCollector(poll_interval=0, limit=2)
+    client = MagicMock()
+    pages = {1: [_obs(1, 1), _obs(2, 2)], 2: [_obs(3, 3), _obs(4, 4)], 3: [_obs(5, 5)]}
+    client.api.observations.get_many.side_effect = lambda **kw: _resp(pages[kw["page"]])
+
+    traces = list(collector._new_traces(collector._fetch_all(client)))
+    assert [t.trace_id for t in traces] == [f"trace-{i}" for i in range(1, 6)]
+    assert traces[0].input == "question 1"
+    assert traces[0].output == "answer 1"
+
+
+def test_langfuse_cursor_does_not_repeat_boundary_observation():
+    from spaniq.monitor.collectors.langfuse import LangfuseCollector
+
+    collector = LangfuseCollector(poll_interval=0)
+    first = list(collector._new_traces([_obs(1, 1), _obs(2, 2)]))
+    # the API's from_start_time is inclusive, so obs-2 comes back with a new one
+    second = list(collector._new_traces([_obs(2, 2), _obs(3, 2), _obs(4, 3)]))
+    assert [t.trace_id for t in first] == ["trace-1", "trace-2"]
+    assert [t.trace_id for t in second] == ["trace-3", "trace-4"]
+
+
+def test_file_collector_tail_waits_for_partial_line(tmp_path):
+    import json
+    import threading
+
+    path = tmp_path / "live.jsonl"
+    record = json.dumps({"input": "q", "output": "a"})
+    path.write_text(record[:10], encoding="utf-8")
+
+    def finish_line():
+        with open(path, "a", encoding="utf-8") as fh:
+            fh.write(record[10:] + "\n")
+
+    collector = FileCollector(str(path), tail=True, interval=0.05)
+    timer = threading.Timer(0.2, finish_line)
+    timer.start()
+    trace = next(collector.collect())
+    timer.join()
+    assert trace.input == "q"
