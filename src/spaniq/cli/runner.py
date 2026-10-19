@@ -237,8 +237,26 @@ def _monitor_run(args: argparse.Namespace) -> None:
         alert_after=args.alert_after,
         alerts_path=args.alerts_path,
         drift_window=args.drift_window or None,
+        **_judge_options(args),
     )
     monitor.run(max_traces=args.max_traces)
+
+
+def _judge_options(args: argparse.Namespace) -> dict:
+    """Monitor keyword arguments for --judge / --judge-budget / --judge-per-incident."""
+    if not args.judge:
+        return {}
+    from spaniq.escalation import JudgeBudget, make_judge
+
+    try:
+        judge = make_judge(args.judge)
+    except ValueError as exc:
+        raise CLIError(str(exc)) from exc
+    return {
+        "judge": judge,
+        "judge_budget": JudgeBudget(args.db, args.judge_budget),
+        "judge_per_incident": args.judge_per_incident,
+    }
 
 
 def _pipeline_run(args: argparse.Namespace) -> None:
@@ -469,6 +487,18 @@ def _diff(args: argparse.Namespace) -> None:
         nli=nli,
         top_k=args.top,
     )
+    if args.judge and result.review:
+        from spaniq.escalation import Candidate, JudgeBudget, escalate, make_judge
+
+        try:
+            judge = make_judge(args.judge)
+        except ValueError as exc:
+            raise CLIError(str(exc)) from exc
+        budget = JudgeBudget(args.db, args.judge_budget)
+        candidates = [
+            Candidate(r.trace_id, r.input, r.output, r.context, r.priority) for r in result.review
+        ]
+        result.verdicts = escalate(candidates, judge, budget)
     if args.as_json:
         print(json.dumps(result.to_dict(), indent=2))
     else:
@@ -661,6 +691,14 @@ def _build_parser() -> argparse.ArgumentParser:
     run_mon.add_argument("--alerts-path", default="alerts.jsonl", dest="alerts_path")
     run_mon.add_argument("--max-traces", type=int, default=None, dest="max_traces")
     run_mon.add_argument(
+        "--judge",
+        default=None,
+        choices=["groq"],
+        help="when drift starts, send the traces that moved most to an LLM judge",
+    )
+    run_mon.add_argument("--judge-budget", type=int, default=50, dest="judge_budget")
+    run_mon.add_argument("--judge-per-incident", type=int, default=5, dest="judge_per_incident")
+    run_mon.add_argument(
         "--drift-window",
         type=int,
         default=100,
@@ -791,6 +829,20 @@ def _build_parser() -> argparse.ArgumentParser:
         help="add sentence-level NLI groundedness signals (loads the NLI model)",
     )
     diff_p.add_argument("--top", type=int, default=10, help="traces to list for review")
+    diff_p.add_argument(
+        "--judge",
+        default=None,
+        choices=["groq"],
+        help="send the traces listed for review to an LLM judge",
+    )
+    diff_p.add_argument(
+        "--judge-budget",
+        type=int,
+        default=20,
+        dest="judge_budget",
+        help="most judge calls per UTC day, shared through --db",
+    )
+    diff_p.add_argument("--db", default=DEFAULT_DB, help="where the judge budget is kept")
     diff_p.add_argument("--json", action="store_true", dest="as_json", help="print JSON")
     diff_p.add_argument("--markdown", default=None, help="also write a Markdown report here")
     diff_p.add_argument(

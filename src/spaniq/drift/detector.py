@@ -23,6 +23,7 @@ DEFAULT_ALPHA = 0.01
 DEFAULT_MIN_EFFECT = 0.5
 DEFAULT_MIN_PSI = 0.2
 MIN_SAMPLES = 5
+_Z_CAP = 10.0
 EMBEDDING = "embedding"
 
 
@@ -129,6 +130,34 @@ def compare(
             s.drifted = p_adj < alpha and (abs(s.effect_size) >= min_effect or s.psi >= min_psi)
     results.sort(key=lambda s: (not s.drifted, -abs(s.statistic)))
     return DriftReport(n_baseline=len(baseline), n_candidate=len(candidate), signals=results)
+
+
+def drift_priorities(
+    rows: list[dict[str, float]],
+    baseline: list[dict[str, float]],
+    report: DriftReport,
+    prefix: str = "",
+) -> list[tuple[float, list[str]]]:
+    """For each row: summed z-score along every drifted signal's direction, and the top reasons."""
+    directions = []
+    for s in report.drifted_signals:
+        values = [r[s.signal] for r in baseline if s.signal in r]
+        if not values or s.effect_size != s.effect_size:
+            continue
+        std = float(np.std(values)) or max(abs(float(np.mean(values))) * 0.1, 0.05)
+        directions.append((s.signal, float(np.mean(values)), std, float(np.sign(s.effect_size))))
+    out = []
+    for row in rows:
+        scored = []
+        for name, mean, std, sign in directions:
+            if name not in row:
+                continue
+            z = min(_Z_CAP, max(0.0, sign * (row[name] - mean) / std))
+            if z > 0:
+                scored.append((z, f"{prefix}{name}={row[name]:.3g} (baseline mean {mean:.3g})"))
+        scored.sort(reverse=True)
+        out.append((sum(z for z, _ in scored), [r for _, r in scored[:3]]))
+    return out
 
 
 class WindowDriftDetector:

@@ -44,6 +44,11 @@ def render_markdown(result: DiffResult, max_signals: int = 8) -> str:
             output = r.output.replace("\n", " ")[:160]
             lines.append(f"- `{r.trace_id}` {'; '.join(r.reasons)}  \n  > {output}")
         lines.append("")
+    if result.verdicts:
+        lines += ["### Judge verdicts", "", "| trace | score | reason |", "|---|---|---|"]
+        for v in result.verdicts:
+            lines.append(f"| `{v.trace_id}` | {v.score:.2f} | {v.reason} |")
+        lines.append("")
     return "\n".join(lines)
 
 
@@ -74,3 +79,8 @@ def print_diff(result: DiffResult, max_signals: int = 8) -> None:
         for r in result.review:
             console.print(f"  {r.trace_id}  {'; '.join(r.reasons)}")
             console.print(f"    [dim]{r.output.replace(chr(10), ' ')[:140]}[/dim]")
+    if result.verdicts:
+        console.print("\n[bold]judge verdicts[/bold]")
+        for v in result.verdicts:
+            color = "green" if v.passed else "red"
+            console.print(f"  {v.trace_id}  [{color}]{v.score:.2f}[/{color}]  {v.reason}")

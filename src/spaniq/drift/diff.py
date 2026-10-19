@@ -21,13 +21,13 @@ from spaniq.drift.detector import (
     DEFAULT_MIN_PSI,
     DriftReport,
     compare,
+    drift_priorities,
 )
 from spaniq.monitor.trace import Trace
-from spaniq.signals.extract import OUTPUT_UNIT, output_repeats_span, trace_signals
+from spaniq.signals.extract import OUTPUT_UNIT, context_for, output_repeats_span, trace_signals
 from spaniq.signals.nli import NLIModel
 
 log = logging.getLogger(__name__)
-_Z_CAP = 10.0
 
 
 @dataclass
@@ -44,6 +44,7 @@ class ReviewItem:
     reasons: list[str]
     input: str
     output: str
+    context: str | None = None
 
 
 @dataclass
@@ -53,6 +54,7 @@ class DiffResult:
     units: list[UnitDiff]
     root_cause: str | None
     review: list[ReviewItem] = field(default_factory=list)
+    verdicts: list = field(default_factory=list)
 
     @property
     def drifted(self) -> bool:
@@ -78,6 +80,15 @@ class DiffResult:
                     "output": r.output,
                 }
                 for r in self.review
+            ],
+            "verdicts": [
+                {
+                    "trace_id": v.trace_id,
+                    "score": round(v.score, 3),
+                    "reason": v.reason,
+                    "judge": v.judge,
+                }
+                for v in self.verdicts
             ],
         }
 
@@ -139,36 +150,28 @@ def _review(
     top_k: int,
 ) -> list[ReviewItem]:
     """Candidate traces ranked by how far they moved in the direction each drifted signal moved."""
-    directions = []
+    totals = [0.0] * len(candidate)
+    reasons: list[list[tuple[float, str]]] = [[] for _ in candidate]
     for u in units:
-        for s in u.report.drifted_signals:
-            values = [r[s.signal] for r in base_signals.get(u.unit, []) if s.signal in r]
-            if not values or s.effect_size != s.effect_size:
-                continue
-            std = float(np.std(values)) or max(abs(float(np.mean(values))) * 0.1, 0.05)
-            directions.append((u.unit, s.signal, s.baseline_mean, std, np.sign(s.effect_size)))
-    items = []
-    for trace, signals in zip(candidate, cand_signals, strict=True):
-        scored = []
-        for unit, name, mean, std, sign in directions:
-            value = signals.get(unit, {}).get(name)
-            if value is None:
-                continue
-            z = min(_Z_CAP, max(0.0, sign * (value - mean) / std))
-            if z > 0:
-                scored.append((z, f"{unit}.{name}={value:.3g} (baseline mean {mean:.3g})"))
-        if not scored:
+        if not u.report.drifted:
             continue
-        scored.sort(reverse=True)
-        items.append(
-            ReviewItem(
-                trace_id=trace.trace_id,
-                priority=sum(z for z, _ in scored),
-                reasons=[r for _, r in scored[:3]],
-                input=trace.input,
-                output=trace.output,
-            )
+        rows = [s.get(u.unit, {}) for s in cand_signals]
+        ranked = drift_priorities(rows, base_signals.get(u.unit, []), u.report, f"{u.unit}.")
+        for i, (priority, why) in enumerate(ranked):
+            totals[i] += priority
+            reasons[i] += [(priority, r) for r in why]
+    items = [
+        ReviewItem(
+            trace_id=t.trace_id,
+            priority=totals[i],
+            reasons=[r for _, r in sorted(reasons[i], key=lambda x: -x[0])[:3]],
+            input=t.input,
+            output=t.output,
+            context=context_for(t),
         )
+        for i, t in enumerate(candidate)
+        if totals[i] > 0
+    ]
     items.sort(key=lambda r: -r.priority)
     return items[:top_k]
 
