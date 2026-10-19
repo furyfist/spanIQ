@@ -25,11 +25,12 @@ dependencies = [
     "scipy>=1.11.0",
     "sentence-transformers>=3.0.0",
     "rich>=13.0.0",
-    "matplotlib>=3.8.0",
     "ruptures>=1.1.9",
 ]
 
 [project.optional-dependencies]
+# PNG chart export (timeline export, attribution --export, demos)
+viz = ["matplotlib>=3.8.0"]
 langfuse = ["langfuse>=4.0.0"]
 groq = ["groq>=1.0.0"]
 otel = [
@@ -54,7 +55,7 @@ benchmark = [
     "openai>=1.0.0",
     "groq>=1.0.0",
 ]
-all = ["spaniq[otel,dashboard,langfuse,groq,benchmark]"]
+all = ["spaniq[viz,otel,dashboard,langfuse,groq,benchmark]"]
 dev = [
     "pytest>=8.0",
     "pytest-xdist>=3.5",
@@ -67,6 +68,8 @@ spaniq = "spaniq.cli.runner:main"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/spaniq"]
+# Sample outputs live in docs/demo_output; demos write fresh ones to the working directory.
+exclude = ["src/spaniq/demos/output", "src/spaniq/demos/fixtures/cascade/attribution.png"]
 
 [tool.ruff]
 line-length = 100

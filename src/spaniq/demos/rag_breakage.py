@@ -14,7 +14,8 @@ import json
 from pathlib import Path
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "rag_breakage"
-OUTPUT_DIR = Path(__file__).parent / "output"
+# Relative to the working directory: an installed package dir may be read-only.
+DEFAULT_OUTPUT_DIR = Path("spaniq_demo_output")
 
 PROMPT = "What is the refund policy for orders placed in the last 30 days?"
 CONTEXT = (
@@ -29,7 +30,11 @@ SYSTEM_NO_CONTEXT = "You are a customer support agent. Answer the customer's que
 MODEL = "llama-3.3-70b-versatile"
 
 
-def run(offline: bool = False, db_path: str = "spaniq_demo_rag.db") -> None:
+def run(
+    offline: bool = False,
+    db_path: str | None = None,
+    output_dir: str | Path | None = None,
+) -> None:
     from rich.console import Console
 
     from spaniq.metrics.output_stability import OutputStabilityMetric
@@ -41,9 +46,11 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_rag.db") -> None:
     from spaniq.monitor.visualize import export_timeline_png
 
     console = Console()
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    out_dir = Path(output_dir or DEFAULT_OUTPUT_DIR)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    db_path = db_path or str(out_dir / "spaniq_demo_rag.db")
     Path(db_path).unlink(missing_ok=True)
-    traces_path = OUTPUT_DIR / "rag_breakage_traces.jsonl"
+    traces_path = out_dir / "rag_breakage_traces.jsonl"
 
     if offline:
         baselines_file = FIXTURES_DIR / "baselines.json"
@@ -107,27 +114,27 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_rag.db") -> None:
         ],
         db_path=db_path,
         alert_after=3,
-        alerts_path=str(OUTPUT_DIR / "rag_breakage_alerts.jsonl"),
+        alerts_path=str(out_dir / "rag_breakage_alerts.jsonl"),
     )
     report = monitor.run()
 
     export_timeline_png(
         monitor.timeline_store,
         "SemanticSimilarityMetric",
-        output_path=str(OUTPUT_DIR / "rag_breakage_semantic.png"),
+        output_path=str(out_dir / "rag_breakage_semantic.png"),
         last_n=40,
     )
     export_timeline_png(
         monitor.timeline_store,
         "ResponseDriftMetric",
-        output_path=str(OUTPUT_DIR / "rag_breakage_drift.png"),
+        output_path=str(out_dir / "rag_breakage_drift.png"),
         last_n=40,
     )
 
     console.print("\n[bold]results:[/bold]")
     console.print(f"  total traces: {report.total_traces}")
     console.print(f"  alerts fired: {report.alerts_fired}")
-    (OUTPUT_DIR / "rag_breakage_report.txt").write_text(
+    (out_dir / "rag_breakage_report.txt").write_text(
         f"rag breakage demo\ntraces: {report.total_traces}\n"
         f"alerts: {report.alerts_fired}\npass rates: {report.pass_rates}\n"
     )

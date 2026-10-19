@@ -7,7 +7,8 @@ __pycache__/
 dist/
 .pytest_cache/
 .ruff_cache/
-benchmarks/results/
+benchmarks/results/*
+!benchmarks/results/.gitkeep
 benchmarks/results_accuracy/run.log
 .deepeval/
 .env
@@ -15,3 +16,11 @@ benchmarks/results_accuracy/run.log
 # generated at runtime by the demos / tests
 *.db
 
+
+# demo runs write here
+spaniq_demo_output/
+otel_traces.jsonl
+
+# legacy variance-run results referenced by BENCHMARK_METHODOLOGY.md
+!benchmarks/results/results.json
+!benchmarks/results/summary.md

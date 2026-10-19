@@ -85,7 +85,8 @@ def run(offline: bool = True) -> None:
     console.rule("[bold]Attribution Result[/bold]")
     print_attribution(result)
 
-    png_path = Path(__file__).parent / "fixtures" / "cascade" / "attribution.png"
+    png_path = Path("spaniq_demo_output") / "cascade_attribution.png"
+    png_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         save_attribution_png(
             result=result,

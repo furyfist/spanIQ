@@ -14,7 +14,8 @@ import json
 from pathlib import Path
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "model_swap"
-OUTPUT_DIR = Path(__file__).parent / "output"
+# Relative to the working directory: an installed package dir may be read-only.
+DEFAULT_OUTPUT_DIR = Path("spaniq_demo_output")
 
 PROMPT = "Write a short Python function that reverses a string and explain how it works."
 SYSTEM = "You are a helpful coding assistant. Give clear, concise answers."
@@ -22,7 +23,11 @@ MODEL_70B = "llama-3.3-70b-versatile"
 MODEL_8B = "llama-3.1-8b-instant"
 
 
-def run(offline: bool = False, db_path: str = "spaniq_demo_swap.db") -> None:
+def run(
+    offline: bool = False,
+    db_path: str | None = None,
+    output_dir: str | Path | None = None,
+) -> None:
     from rich.console import Console
 
     from spaniq.metrics.output_stability import OutputStabilityMetric
@@ -34,9 +39,11 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_swap.db") -> None:
     from spaniq.monitor.visualize import export_timeline_png
 
     console = Console()
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    out_dir = Path(output_dir or DEFAULT_OUTPUT_DIR)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    db_path = db_path or str(out_dir / "spaniq_demo_swap.db")
     Path(db_path).unlink(missing_ok=True)
-    traces_path = OUTPUT_DIR / "model_swap_traces.jsonl"
+    traces_path = out_dir / "model_swap_traces.jsonl"
 
     if offline:
         baselines_file = FIXTURES_DIR / "baselines.json"
@@ -94,27 +101,27 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_swap.db") -> None:
         ],
         db_path=db_path,
         alert_after=3,
-        alerts_path=str(OUTPUT_DIR / "model_swap_alerts.jsonl"),
+        alerts_path=str(out_dir / "model_swap_alerts.jsonl"),
     )
     report = monitor.run()
 
     export_timeline_png(
         monitor.timeline_store,
         "OutputStabilityMetric",
-        output_path=str(OUTPUT_DIR / "model_swap_stability.png"),
+        output_path=str(out_dir / "model_swap_stability.png"),
         last_n=40,
     )
     export_timeline_png(
         monitor.timeline_store,
         "ResponseDriftMetric",
-        output_path=str(OUTPUT_DIR / "model_swap_drift.png"),
+        output_path=str(out_dir / "model_swap_drift.png"),
         last_n=40,
     )
 
     console.print("\n[bold]results:[/bold]")
     console.print(f"  total traces: {report.total_traces}")
     console.print(f"  alerts fired: {report.alerts_fired}")
-    (OUTPUT_DIR / "model_swap_report.txt").write_text(
+    (out_dir / "model_swap_report.txt").write_text(
         f"model swap demo\ntraces: {report.total_traces}\n"
         f"alerts: {report.alerts_fired}\npass rates: {report.pass_rates}\n"
     )

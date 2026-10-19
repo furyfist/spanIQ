@@ -27,6 +27,8 @@ class MetricResult:
 
 @dataclass
 class TestCaseResult:
+    __test__ = False  # not a pytest test class despite the name
+
     test_case: LLMTestCase
     metric_results: list[MetricResult]
 

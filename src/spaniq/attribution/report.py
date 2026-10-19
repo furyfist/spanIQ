@@ -90,6 +90,9 @@ def save_attribution_png(
     last_n: int = 500,
     pipeline: str | None = None,
 ) -> None:
+    from spaniq.monitor.visualize import _require_matplotlib
+
+    _require_matplotlib().use("Agg")
     import matplotlib.pyplot as plt
 
     n = len(components)

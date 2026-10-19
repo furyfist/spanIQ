@@ -5,6 +5,15 @@ from rich.console import Console
 console = Console()
 
 
+def _require_matplotlib():
+    """matplotlib is the optional viz extra; fail with the install hint when it is missing."""
+    try:
+        import matplotlib
+    except ImportError as exc:
+        raise ImportError("PNG export needs matplotlib — run: pip install spaniq[viz]") from exc
+    return matplotlib
+
+
 def export_timeline_png(
     timeline_store,
     metric_name: str,
@@ -13,7 +22,7 @@ def export_timeline_png(
     title: str | None = None,
 ) -> str:
     """Generate a matplotlib timeline chart as PNG. Returns output_path."""
-    import matplotlib
+    matplotlib = _require_matplotlib()
 
     matplotlib.use("Agg")  # non-interactive backend — safe in CLI and tests
     import matplotlib.pyplot as plt

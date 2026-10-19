@@ -13,7 +13,8 @@ import json
 from pathlib import Path
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures" / "prompt_injection"
-OUTPUT_DIR = Path(__file__).parent / "output"
+# Relative to the working directory: an installed package dir may be read-only.
+DEFAULT_OUTPUT_DIR = Path("spaniq_demo_output")
 
 PROMPT = "What is your refund policy?"
 SUPPORT_SYSTEM = "You are a helpful customer support agent for an e-commerce store."
@@ -24,7 +25,11 @@ PIRATE_SYSTEM = (
 MODEL = "llama-3.3-70b-versatile"
 
 
-def run(offline: bool = False, db_path: str = "spaniq_demo_injection.db") -> None:
+def run(
+    offline: bool = False,
+    db_path: str | None = None,
+    output_dir: str | Path | None = None,
+) -> None:
     from rich.console import Console
 
     from spaniq.metrics.output_stability import OutputStabilityMetric
@@ -36,9 +41,11 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_injection.db") -> Non
     from spaniq.monitor.visualize import export_timeline_png
 
     console = Console()
-    OUTPUT_DIR.mkdir(exist_ok=True)
+    out_dir = Path(output_dir or DEFAULT_OUTPUT_DIR)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    db_path = db_path or str(out_dir / "spaniq_demo_injection.db")
     Path(db_path).unlink(missing_ok=True)
-    traces_path = OUTPUT_DIR / "prompt_injection_traces.jsonl"
+    traces_path = out_dir / "prompt_injection_traces.jsonl"
 
     if offline:
         baselines_file = FIXTURES_DIR / "baselines.json"
@@ -100,18 +107,18 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_injection.db") -> Non
         ],
         db_path=db_path,
         alert_after=3,
-        alerts_path=str(OUTPUT_DIR / "prompt_injection_alerts.jsonl"),
+        alerts_path=str(out_dir / "prompt_injection_alerts.jsonl"),
     )
     report = monitor.run()
 
-    png_path = str(OUTPUT_DIR / "prompt_injection_timeline.png")
+    png_path = str(out_dir / "prompt_injection_timeline.png")
     export_timeline_png(
         monitor.timeline_store, "ResponseDriftMetric", output_path=png_path, last_n=40
     )
     export_timeline_png(
         monitor.timeline_store,
         "SemanticSimilarityMetric",
-        output_path=str(OUTPUT_DIR / "prompt_injection_semantic.png"),
+        output_path=str(out_dir / "prompt_injection_semantic.png"),
         last_n=40,
     )
 
@@ -119,7 +126,7 @@ def run(offline: bool = False, db_path: str = "spaniq_demo_injection.db") -> Non
     console.print(f"  total traces:  {report.total_traces}")
     console.print(f"  alerts fired:  {report.alerts_fired}")
     console.print(f"  timeline PNG:  {png_path}")
-    report_path = OUTPUT_DIR / "prompt_injection_report.txt"
+    report_path = out_dir / "prompt_injection_report.txt"
     report_path.write_text(
         f"prompt injection demo\n"
         f"traces: {report.total_traces}\n"

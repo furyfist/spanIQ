@@ -713,6 +713,10 @@ def main(argv: list[str] | None = None) -> None:
     except FileNotFoundError as exc:
         print(f"error: file not found: {exc.filename}", file=sys.stderr)
         sys.exit(1)
+    except ImportError as exc:
+        # optional extras raise ImportError with the pip install hint
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
     except KeyboardInterrupt:
         sys.exit(130)
 
