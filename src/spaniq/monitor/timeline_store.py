@@ -280,8 +280,5 @@ class TimelineStore:
         return [dict(r) for r in rows]
 
     def alert_count(self) -> int:
-        try:
-            with self._conn() as conn:
-                return conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]
-        except Exception:
-            return 0
+        with self._conn() as conn:
+            return conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0]

@@ -90,7 +90,9 @@ def test_monitor_fires_alert_after_n_failures(tmp_path, db, baseline_name):
         alerts_path=str(tmp_path / "alerts.jsonl"),
     )
     report = monitor.run()
-    assert report.alerts_fired > 0
+    assert report.alerts_fired == 1
+    # the dashboard reads alerts from SQLite, so the monitor must write them there
+    assert TimelineStore(db).alert_count() == 1
 
 
 def test_monitor_resets_on_pass(tmp_path, db, baseline_name):

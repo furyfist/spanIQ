@@ -78,3 +78,31 @@ def test_counter_resets_on_pass(tmp_path):
     _check(engine, passed=False)
     _check(engine, passed=False)
     assert len(engine.alerts) == 0  # never reached 3 in a row after reset
+
+
+def test_one_alert_per_incident(tmp_path):
+    """A long failure streak is a single incident, not an alert per trace."""
+    engine = AlertEngine(alert_after=3, alerts_path=str(tmp_path / "alerts.jsonl"))
+    for _ in range(20):
+        _check(engine, passed=False)
+    assert len(engine.alerts) == 1
+    _check(engine, passed=True)
+    for _ in range(3):
+        _check(engine, passed=False)
+    assert len(engine.alerts) == 2
+
+
+def test_repeat_every_realerts_during_long_incident(tmp_path):
+    engine = AlertEngine(alert_after=3, alerts_path=str(tmp_path / "a.jsonl"), repeat_every=5)
+    for _ in range(13):
+        _check(engine, passed=False)
+    assert [a.consecutive_count for a in engine.alerts] == [3, 8, 13]
+
+
+def test_alert_written_to_sqlite(tmp_path):
+    from spaniq.monitor.timeline_store import TimelineStore
+
+    db = str(tmp_path / "spaniq.db")
+    engine = AlertEngine(alert_after=1, alerts_path=str(tmp_path / "a.jsonl"), db_path=db)
+    _check(engine, passed=False)
+    assert TimelineStore(db).alert_count() == 1

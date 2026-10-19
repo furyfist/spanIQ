@@ -45,7 +45,9 @@ class Monitor:
     ) -> None:
         self.baseline_store = BaselineStore(db_path)
         self.timeline_store = TimelineStore(db_path)
-        self.alert_engine = AlertEngine(alert_after=alert_after, alerts_path=alerts_path)
+        self.alert_engine = AlertEngine(
+            alert_after=alert_after, alerts_path=alerts_path, db_path=db_path
+        )
         self.collector = collector
         self.baseline = self.baseline_store.get_by_name(baseline_name)
         self._baseline_outputs: list[str] = json.loads(self.baseline.outputs)
