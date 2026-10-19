@@ -485,6 +485,21 @@ def _benchmark_run(args: argparse.Namespace) -> None:
         except ValueError as exc:
             raise CLIError(str(exc)) from exc
         return
+    if args.suite == "grounding":
+        from benchmarks.grounding.run import main as grounding_main
+        from benchmarks.grounding.run import parse_datasets
+
+        spec = "local" if args.dataset == "all" else args.dataset
+        try:
+            grounding_main(
+                datasets=parse_datasets(spec),
+                scorers=_split(args.scorers),
+                limit=args.limit,
+                output_dir=args.output or "benchmarks/results_grounding",
+            )
+        except ValueError as exc:
+            raise CLIError(str(exc)) from exc
+        return
     from benchmarks.run_benchmark import main as bench_main
 
     bench_main(
@@ -688,9 +703,10 @@ def _build_parser() -> argparse.ArgumentParser:
     bench_p.add_argument(
         "--suite",
         default="accuracy",
-        choices=["accuracy", "drift"],
+        choices=["accuracy", "drift", "grounding"],
         help="accuracy: labeled good/bad outputs (default); "
-        "drift: detect injected pipeline changes and blame the right component",
+        "drift: detect injected pipeline changes and blame the right component; "
+        "grounding: separate hallucinated from faithful outputs on labeled sets",
     )
     bench_p.add_argument(
         "--tool",
@@ -700,7 +716,8 @@ def _build_parser() -> argparse.ArgumentParser:
     bench_p.add_argument(
         "--dataset",
         default="all",
-        help="dataset to use: qa_factual, summarization, rag_retrieval, all",
+        help="accuracy suite: qa_factual, summarization, rag_retrieval, all; "
+        "grounding suite: local, ragtruth=DIR, halueval_qa=FILE, aggrefact[=FILE], comma-separated",
     )
     bench_p.add_argument("--runs", type=int, default=5, help="number of identical runs per tool")
     bench_p.add_argument(
@@ -722,6 +739,15 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     bench_p.add_argument(
         "--scenarios", default=None, help="drift suite: comma-separated scenarios (default: all)"
+    )
+    bench_p.add_argument(
+        "--scorers",
+        default=None,
+        help="grounding suite: unsupported_claims,novel_words,nli,judge "
+        "(default: the two lexical ones)",
+    )
+    bench_p.add_argument(
+        "--limit", type=int, default=None, help="grounding suite: max examples per dataset"
     )
     bench_p.add_argument(
         "--live", action="store_true", help="drift suite: generate streams with real model calls"

@@ -4,8 +4,10 @@ The old similarity metrics compared an answer with a reference, so an answer
 that copied the reference and added an invented claim looked better than a
 faithful paraphrase. These signals instead ask whether what the answer states
 can be found in its own retrieved context, which every RAG trace already has.
-They are lexical, so they catch invented numbers, names and vocabulary, not a
-reworded false claim; spaniq.signals.nli covers that with a local NLI model.
+They are lexical, so they catch invented numbers and names, not a reworded
+false claim; spaniq.signals.nli covers that with a local NLI model.
+novel_words rises for honest paraphrases too, so it is useful for spotting a
+change in how a model writes, not as a per-output hallucination score.
 """
 
 from __future__ import annotations
