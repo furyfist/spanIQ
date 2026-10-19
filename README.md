@@ -4,137 +4,92 @@
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 
-**Deterministic LLM evaluation and production monitoring. $0/trace. No LLM judge.**
+**Did your LLM pipeline change, which component changed, and which traces should a judge look at?**
 
-1,000 test cases × 3 metrics → **$0.00** and **no API calls**, instead of **9,000 LLM-judge calls**. Runs locally on CPU.
+spanIQ records cheap, deterministic signals for every trace and every pipeline component: length and structure, refusals, hedging, and whether the answer's numbers and names appear in its own retrieved context. It compares windows of those signals against a baseline. A model swap, prompt edit or broken retriever shifts them, even when no single output looks wrong. spanIQ then names the most upstream component that shifted, and can send the traces that moved most to an LLM judge within a daily budget.
+
+It is not an LLM-judge replacement. For deciding whether one answer is right a judge is better ([BENCHMARK_ACCURACY.md](BENCHMARK_ACCURACY.md)). spanIQ runs on 100% of traffic for $0 and tells you where to spend judge calls.
 
 ---
 
-## Get your first signal in 2 minutes
+## Catch regressions in CI
+
+Replay the same eval inputs on `main` and on your branch, then:
 
 ```bash
-# not on PyPI yet; install from GitHub
-pip install "git+https://github.com/furyfist/spanIQ"
+pip install "spaniq @ git+https://github.com/furyfist/spanIQ"   # not on PyPI yet
+spaniq diff baseline.jsonl candidate.jsonl --markdown report.md
 ```
 
-```python
-from spaniq.core.test_case import LLMTestCase
-from spaniq.core.evaluate import evaluate
-from spaniq.metrics.semantic_similarity import SemanticSimilarityMetric
-
-tc = LLMTestCase(
-    input="What is the capital of France?",
-    actual_output="Paris is the capital of France.",
-    expected_output="Paris",
-)
-result = evaluate([tc], [SemanticSimilarityMetric()])
-# Deterministic. Same score every run. $0.00.
+```
+drift in generation; most upstream drifted component: generation (200 baseline vs 300 candidate traces)
+  retrieval: stable
+generation: drifted
+| words_per_sentence | 26.9 -> 7.92 (d=-5.06, PSI 13.72) | 1.2e-137 |
+| hedges             | 0.00139 -> 0.038 (d=+0.99)        | 4.7e-18  |
+...
+review first
+  t000542  generation.unsupported_numbers=1 (baseline mean 0); ...
 ```
 
-Or with OTel (zero code changes to your app):
+It exits 1 when the candidate drifted, so a pull request fails. Traces are JSONL with `input` and `output`, plus optional `components` (retrieval, tool and generation spans) and `metadata.context`. Add `--judge groq --judge-budget 20` to have a judge score the traces listed for review. A ready workflow is in [examples/ci/spaniq-diff.yml](examples/ci/spaniq-diff.yml); details are in [docs/CI.md](docs/CI.md).
+
+## Watch production
 
 ```bash
-pip install "spaniq[otel] @ git+https://github.com/furyfist/spanIQ"
-spaniq collect-otel --baseline my_baseline
-# point your OTel exporter to localhost:4317 (gRPC) or localhost:4318/v1/traces (HTTP)
-```
-
-Then see your data:
-
-```bash
-pip install "spaniq[dashboard] @ git+https://github.com/furyfist/spanIQ"
+spaniq collect-otel --store-only                     # OTLP on localhost:4317 / 4318, writes otel_traces.jsonl
+spaniq pipeline run --name rag --path otel_traces.jsonl
+spaniq attribute --pipeline rag --signals            # change points on every stored signal series
 spaniq dashboard
-# opens http://localhost:8501
 ```
+
+`spaniq pipeline run` uses each component's first `--warmup` traces as its baseline. It then compares a sliding window of each component's signals against that baseline. When one trips, every component is re-tested on the traces since the estimated change, and the most upstream one that shifted is blamed. `spaniq monitor run --judge groq` escalates the traces that moved furthest at the start of each incident.
 
 ---
 
-## The benchmark table
+## What it measures
 
-*Accuracy at catching bad outputs on a labeled 100-row QA set (positive class =
-bad; thresholds calibrated on a held-out fold). Live run, 2026-10-19, judge
-`openai/gpt-oss-120b` via Groq.*
+| Signals | Needs | Examples | Catches |
+|---|---|---|---|
+| Reference-free | the output | length, sentences, list lines, JSON validity, refusals, hedges, repetition | format, style and behaviour changes |
+| Grounding | the trace's own context | unsupported numbers and names, novel wording, question coverage of the retrieval | invented facts, wrong passages |
+| NLI (optional) | context and a local cross-encoder | sentence entailment, contradiction | reworded false claims |
+| Reference metrics | a baseline or reference answer | `SemanticSimilarityMetric`, `ResponseDriftMetric`, ... | offline eval against known answers |
 
-| Tool | Precision | Recall | F1 | ROC-AUC | Cost / trace | Deterministic |
-|------|-----------|--------|----|---------|--------------|---------------|
-| Groq LLM judge | 1.000 | 1.000 | **1.000** | 1.000 | paid | usually, at temp 0 |
-| deepeval (G-Eval) | 1.000 | 1.000 | **1.000** | 1.000 | paid | usually, at temp 0 |
-| langfuse-style | 1.000 | 1.000 | **1.000** | 1.000 | paid | usually, at temp 0 |
-| **spanIQ** | 0.806 | 0.967 | **0.879** | 0.857 | **$0.00** | ✅ by construction |
+Windows are compared with a KS test per signal, Benjamini-Hochberg across signals, and an effect-size or PSI gate, so that a large window does not turn a negligible wobble into an alarm. Embedding MMD is available for shifts in meaning. More in [docs/SIGNALS.md](docs/SIGNALS.md).
 
-**The honest read:** at deciding whether one answer is right, an LLM judge beats
-spanIQ's embedding similarity, and on the small summarization / RAG sets spanIQ
-does worse than chance, because an answer that copies the reference and adds a
-hallucination looks *more* similar than a correct paraphrase. spanIQ is not a
-judge replacement. Its job is a deterministic, $0 signal of *change* against a
-baseline (drift, structural shifts, which pipeline component broke first).
+---
 
-An earlier version of this table (2026-07-10) claimed spanIQ scored 1.0 on
-summarization / RAG while the judges collapsed. That was wrong: the judge rows
-were rate-limit fallbacks recorded as `0.5`, and spanIQ's score was a label leak.
-Both are fixed. Full tables, the fairness rule, the correction and a per-item
-audit trail: [`BENCHMARK_ACCURACY.md`](BENCHMARK_ACCURACY.md).
+## Benchmarks
 
-> The benchmark runs from a source checkout: `git clone https://github.com/furyfist/spanIQ && cd spanIQ && pip install -e ".[benchmark]"`, then
-> `spaniq benchmark --tool spaniq --runs 5 --metric accuracy` (no key needed), or
-> `spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 5 --metric accuracy` with `GROQ_API_KEY`.
+**Drift** ([BENCHMARK_DRIFT.md](BENCHMARK_DRIFT.md)). Seven injected pipeline changes, 10 seeds. These are synthetic streams written by us: they show the mechanics work, not real-traffic accuracy.
+
+| | legacy (0.4 per-output streak) | window (0.5) |
+|---|---|---|
+| changes detected | 5 of 7 scenarios | 7 of 7 (69 of 70 runs) |
+| median delay | 2 traces | 29 to 119 traces |
+| false alarms (5,000 unchanged traces) | 0 | 0 |
+| right component blamed | 80% of detections (40 of 50) | 84% of detections (58 of 69) |
+
+Legacy is faster when the output's shape changes, but it is blind to wrong facts and partly broken retrievers. The window detector still cannot attribute a retriever that fails on only 30% of queries. The live-model run of the same scenarios is wired but not run yet.
+
+**Grounding.** On the 32 local labeled RAG/summarization rows, where the 0.4 similarity metrics scored worse than chance (AUC 0.25 and 0.06), `unsupported_claims` scores AUC 0.73. RAGTruth, HaluEval and LLM-AggreFact runs, including the NLI tier, are pending.
+
+**Accuracy** ([BENCHMARK_ACCURACY.md](BENCHMARK_ACCURACY.md)). At judging one QA answer, LLM judges score F1 1.000 and spanIQ's embedding similarity scores 0.879. That table also records the correction of an earlier, invalid claim.
 
 ---
 
 ## Architecture
 
 ```
-                 ┌─────────────────────────────────────┐
-                 │         Streamlit Dashboard          │  ← V4
-                 │  reads SQLite, renders interactive   │
-                 └──────────────┬──────────────────────┘
-                                │ reads
-     ┌──────────────────────────┼──────────────────────┐
-     │                   SQLite DB                      │
-     │  baselines │ timeline │ alerts │ components      │
-     └──────────────────────────┬──────────────────────┘
-                                │ writes
-┌───────────────────────────────┼───────────────────────┐
-│              V1-V3 Pipeline (untouched)                │
-│  Metrics → Monitor → TimelineStore → Attribution      │
-└───────────────────────────────┬───────────────────────┘
-                                │ feeds
-┌───────────┬───────────┬───────┴───┬───────────────────┐
-│  File     │ Langfuse  │   SDK     │  OTelCollector    │  ← V4
-│ Collector │ Collector │ Collector │  OTLP/gRPC+HTTP   │
-└───────────┴───────────┴───────────┴───────────────────┘
+ collectors              signals                   detection                  action
+ ──────────              ───────                   ─────────                  ──────
+ OTLP gRPC/HTTP ──┐      per trace and span:       window per unit vs         drift alert (JSONL + SQLite)
+ JSONL file ──────┼──▶   text, grounding, NLI ──▶  baseline: KS + FDR +  ──▶  upstream attribution
+ Langfuse, SDK ───┘      stored as signal.*        effect size, MMD           judge escalation (budgeted)
+                                │                         │                    spaniq diff exit code
+                                └──────── SQLite: timeline, alerts, baselines, judge budget ──▶ dashboard
 ```
-
-V4 adds one collector at the bottom and one visualization layer at the top. The middle is untouched.
-
----
-
-## Features
-
-### V1 — Deterministic evaluation
-- `SemanticSimilarityMetric` — cosine similarity with sentence-transformers
-- `OutputStabilityMetric` — how far an output's length and structure fall outside the baseline's range
-- `ConsistencyMetric` — one-sided KS test: is an output further from the baseline than baseline outputs are from each other
-- `ResponseDriftMetric` — vocabulary drift against the baseline (Population Stability Index)
-
-### V2 — Production monitoring
-- `Monitor` — stream traces from file, Langfuse, or SDK; score against baseline
-- `TimelineStore` — SQLite-backed score time series with trend analysis
-- `AlertEngine` — one alert per consecutive-failure incident, logged to JSONL and SQLite (shown in the dashboard)
-- Collectors: `FileCollector`, `LangfuseCollector`, `SDKCollector`
-
-### V3 — Root-cause attribution
-- PELT changepoint detection per component
-- CUSUM online alarms
-- Cascade attribution: identifies root-cause component and downstream cascades
-- `spaniq attribute` CLI command with terminal report and PNG export
-
-### V4 — Ecosystem entry (this release)
-- **OTelCollector** — OTLP/gRPC + HTTP receiver; auto-maps GenAI semconv spans
-- **Streamlit dashboard** — 4 pages: Overview, Drift Timeline, Attribution, Alert Log
-- **Accuracy benchmark** — compare spanIQ vs Groq/deepeval/ragas/langfuse on precision/recall/F1 at catching bad outputs (plus cost and determinism)
-- **Quickstart overhaul** — 2-line first-signal experience
-- **Generic span support** — `spaniq.*` attributes for non-GenAI apps
 
 ---
 
@@ -142,74 +97,72 @@ V4 adds one collector at the bottom and one visualization layer at the top. The 
 
 ```bash
 # Not on PyPI yet. From GitHub (add extras in brackets):
-pip install "spaniq @ git+https://github.com/furyfist/spanIQ"           # core eval + monitoring
-pip install "spaniq[viz] @ git+https://github.com/furyfist/spanIQ"      # PNG chart export (matplotlib)
+pip install "spaniq @ git+https://github.com/furyfist/spanIQ"           # signals, drift, diff, monitoring
 pip install "spaniq[otel] @ git+https://github.com/furyfist/spanIQ"     # OTel receiver
 pip install "spaniq[dashboard] @ git+https://github.com/furyfist/spanIQ" # local dashboard
-pip install "spaniq[groq] @ git+https://github.com/furyfist/spanIQ"     # Groq baseline collection
+pip install "spaniq[groq] @ git+https://github.com/furyfist/spanIQ"     # Groq judge and baseline collection
+pip install "spaniq[viz] @ git+https://github.com/furyfist/spanIQ"      # PNG chart export
 pip install "spaniq[all] @ git+https://github.com/furyfist/spanIQ"      # everything
 
-# Benchmark suite: needs a source checkout (datasets are not in the wheel)
+# Benchmarks need a source checkout (datasets are not in the wheel)
 git clone https://github.com/furyfist/spanIQ && cd spanIQ && pip install -e ".[benchmark]"
 ```
+
+The NLI model (`cross-encoder/nli-deberta-v3-small`, set `SPANIQ_NLI_MODEL` to change it) and the embedding model download on first use. Nothing needs them unless you pass `--nli`, `--embeddings` or use `GroundednessMetric` / the similarity metrics.
 
 ---
 
 ## CLI reference
 
 ```bash
-# Baseline management
-spaniq baseline collect --name my_baseline --prompt "..." --source groq --n 30
-spaniq baseline list
-spaniq baseline show my_baseline
+# Compare two runs (CI)
+spaniq diff baseline.jsonl candidate.jsonl [--embeddings] [--nli] [--json] [--markdown PATH] [--no-fail]
+spaniq diff baseline.jsonl candidate.jsonl --judge groq --judge-budget 20
 
-# Production monitoring
-spaniq monitor run --baseline my_baseline --source file --path traces.jsonl
-spaniq collect-otel --baseline my_baseline   # OTel receiver (localhost; --host 0.0.0.0 for remote)
-spaniq collect-otel --store-only --traces-path otel_traces.jsonl   # ingest only, replay later
+# Pipelines and attribution
+spaniq pipeline run --name rag --path traces.jsonl [--warmup 20] [--drift-window 100]
+spaniq pipeline status --name rag
+spaniq attribute --pipeline rag --signals [--json] [--export chart.png]
 
-# Timeline inspection
-spaniq timeline show --metric ResponseDriftMetric
-spaniq timeline summary --metric SemanticSimilarityMetric
-spaniq timeline export --metric ResponseDriftMetric --output chart.png
+# Single-output monitoring against a stored baseline
+spaniq baseline collect --name my_baseline --prompt "..." --source file --path outputs.jsonl
+spaniq monitor run --baseline my_baseline --path traces.jsonl [--judge groq --judge-budget 50]
+spaniq collect-otel --baseline my_baseline        # or --store-only --traces-path otel_traces.jsonl
 
-# Pipeline attribution (V3)
-spaniq pipeline run --name my_pipeline --path traces.jsonl
-spaniq pipeline status --name my_pipeline
-spaniq attribute --pipeline my_pipeline --last 500
+# Inspect
+spaniq timeline summary --metric signal.refusal
+spaniq dashboard --db spaniq.db
 
-# Dashboard (V4)
-spaniq dashboard                             # NEW
-spaniq dashboard --db spaniq.db --port 8501
-
-# Benchmark (V4)
-spaniq benchmark --tool spaniq --runs 5 --metric accuracy      # NEW
-spaniq benchmark --tool spaniq,groq,deepeval,ragas,langfuse --runs 3 --metric accuracy
+# Benchmarks (source checkout)
+spaniq benchmark --suite drift [--detectors legacy,window] [--live]
+spaniq benchmark --suite grounding --dataset local,ragtruth=DIR --scorers unsupported_claims,nli
+spaniq benchmark --suite accuracy --tool spaniq,groq --runs 5
 ```
 
 ---
 
 ## Comparison
 
-| Feature | spanIQ | deepeval | ragas | Phoenix | Langfuse |
+| | spanIQ | deepeval | ragas | Phoenix | Langfuse |
 |---|---|---|---|---|---|
-| Deterministic by construction (no LLM call) | ✅ | ❌ | ❌ | ❌ | ❌ |
-| $0 per eval | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Production monitoring | ✅ | ❌ | ❌ | ✅ | ✅ |
-| Changepoint attribution | ✅ | ❌ | ❌ | ❌ | ❌ |
-| OTel integration | ✅ | ❌ | ❌ | ✅ | ✅ |
-| Local dashboard | ✅ | ❌ | ❌ | ✅ | ✅ |
-| No cloud required | ✅ | ✅ | ✅ | ❌ | ❌ |
-| No API key to evaluate | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Runs on every trace at $0 | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Distribution drift with FDR control | ✅ | ❌ | ❌ | partial | ❌ |
+| Blames a pipeline component | ✅ | ❌ | ❌ | ❌ | ❌ |
+| CI regression gate on traces | ✅ | ✅ (judge-based) | ❌ | ❌ | ❌ |
+| Budgeted judge escalation | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Judges single answers well | via escalation | ✅ | ✅ | ✅ | ✅ |
+| OTel ingestion | ✅ | ❌ | ❌ | ✅ | ✅ |
 
 ---
 
 ## Documentation
 
-- [Quickstart](docs/quickstart.md) — 2-minute first signal
-- [OTel integration](docs/otel-integration.md) — connect any OTel app
-- [Dashboard guide](docs/dashboard.md) — navigate the Streamlit UI
-- [V4 build plan](docs/plans/v4.md) — architecture and design decisions
+- [docs/CI.md](docs/CI.md): `spaniq diff` in a pull request workflow
+- [docs/SIGNALS.md](docs/SIGNALS.md): signals, drift tests, attribution and escalation
+- [docs/ATTRIBUTION.md](docs/ATTRIBUTION.md): change point attribution over stored series
+- [docs/otel-integration.md](docs/otel-integration.md): connect any OTel app
+- [docs/dashboard.md](docs/dashboard.md): the Streamlit UI
+- [docs/METRICS.md](docs/METRICS.md): the reference-based metrics
 
 ---
 

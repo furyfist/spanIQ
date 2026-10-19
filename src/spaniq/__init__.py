@@ -22,8 +22,8 @@ def assert_eval(test_case: LLMTestCase, metrics: list[BaseMetric]) -> None:
         raise AssertionError(f"Metrics failed: {', '.join(failures)}")
 
 
-# Monitoring and attribution pull in SQLite stores and ruptures, so they load on
-# first access instead of on "import spaniq".
+# Monitoring, drift and attribution pull in SQLite stores, scipy and ruptures, so
+# they load on first access instead of on "import spaniq".
 _LAZY = {
     "Monitor": "spaniq.monitor.monitor",
     "Trace": "spaniq.monitor.trace",
@@ -36,6 +36,15 @@ _LAZY = {
     "OTelCollector": "spaniq.monitor.collectors.otel",
     "PipelineMonitor": "spaniq.attribution.pipeline_monitor",
     "attribute": "spaniq.attribution.attributor",
+    "attribute_drift": "spaniq.attribution.drift_attribution",
+    "trace_signals": "spaniq.signals.extract",
+    "compare": "spaniq.drift.detector",
+    "WindowDriftDetector": "spaniq.drift.detector",
+    "diff_traces": "spaniq.drift.diff",
+    "load_traces": "spaniq.drift.diff",
+    "JudgeBudget": "spaniq.escalation.budget",
+    "GroqJudge": "spaniq.escalation.judge",
+    "escalate": "spaniq.escalation.escalate",
 }
 
 

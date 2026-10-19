@@ -71,6 +71,10 @@ spaniq dashboard
 
 ---
 
+## Compare two runs
+
+See [CI.md](CI.md): `spaniq diff baseline.jsonl candidate.jsonl` reports which component drifted and exits 1 when one did.
+
 ## Run the determinism benchmark
 
 ```bash

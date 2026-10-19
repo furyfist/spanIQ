@@ -1,6 +1,22 @@
 # Changelog
 
-## Unreleased — correctness and honesty pass
+## 0.5.0 (unreleased): detect changes, blame components, escalate
+
+spanIQ stops claiming to judge single outputs and instead detects when a pipeline changes, names the component, and points a judge at the traces that moved. See `BENCHMARK_DRIFT.md` for what is measured and what is still pending.
+
+### Added
+
+- `spaniq.signals`: reference-free text signals, grounding signals against the trace's own context (unsupported numbers and names, novel wording, question coverage of retrieval), and optional sentence-level NLI groundedness with a lazily loaded local cross-encoder (`SPANIQ_NLI_MODEL`).
+- `GroundednessMetric` (NLI) and `UnsupportedClaimsMetric` (lexical), usable in `evaluate()`, `Monitor` and `--metrics`.
+- `spaniq.drift`: window comparison with KS tests, Benjamini-Hochberg control, effect-size and PSI gating, embedding MMD, and `WindowDriftDetector` for online use.
+- `spaniq diff BASELINE CANDIDATE`: per-component drift report, most upstream drifted component, traces to review first, Markdown output, exit code 1 on drift for CI. Example workflow in `examples/ci/`.
+- `Monitor` and `PipelineMonitor` store every trace's signals as `signal.<name>` series and raise one `drift:<unit>` alert per incident (`--drift-window`, 0 turns it off).
+- Drift attribution: when a component trips, the others are re-tested on the traces since the estimated change point and the most upstream one that shifted is blamed. `spaniq attribute --signals` runs change point detection on the stored signal series.
+- `spaniq.escalation`: budgeted LLM-judge escalation (`JudgeBudget` shared through SQLite, `GroqJudge`, ranked selection with optional exploration). `spaniq diff --judge groq` and `spaniq monitor run --judge groq`.
+- Benchmarks: `spaniq benchmark --suite drift` (injected pipeline changes, legacy vs window detector, live-model mode) and `--suite grounding` (RAGTruth, HaluEval, LLM-AggreFact loaders and the local labeled rows).
+- `Trace.from_dict()`, shared by the file collector and the new commands.
+
+## Correctness and honesty pass (unreleased, ships with 0.5.0)
 
 ### Benchmark
 
