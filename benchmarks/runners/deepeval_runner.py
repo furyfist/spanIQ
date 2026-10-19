@@ -8,6 +8,7 @@ from __future__ import annotations
 import pathlib
 import time
 
+from benchmarks.runners._judge import JudgeError, with_retry
 from benchmarks.runners.spaniq_runner import (
     BenchmarkResult,
     LabeledResult,
@@ -62,17 +63,21 @@ def run_deepeval_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benc
                 actual_output=row["output"],
                 expected_output=row.get("reference_output", row["output"]),
             )
-            try:
-                metric.measure(tc)
-                scores.append(metric.score if metric.score is not None else 0.5)
-            except Exception:
-                scores.append(0.5)
+            scores.append(_measure(metric, tc))
 
         elapsed = time.perf_counter() - start
         result.runs.append(RunResult(scores=scores, time_sec=elapsed, cost_usd=0.0))
         print(f"    deepeval run {run_idx + 1}/{n_runs}: mean={sum(scores) / len(scores):.3f}")
 
     return result
+
+
+def _measure(metric, tc) -> float:
+    """Score one case, raising JudgeError rather than inventing a neutral score."""
+    with_retry(lambda: metric.measure(tc))
+    if metric.score is None:
+        raise JudgeError("deepeval returned no score")
+    return float(metric.score)
 
 
 def _build_metric(groq_model):
@@ -124,11 +129,7 @@ def run_deepeval_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5) 
                 actual_output=row["output"],
                 expected_output=row.get("reference_output", row["output"]),
             )
-            try:
-                metric.measure(tc)
-                scores.append(metric.score if metric.score is not None else 0.5)
-            except Exception:
-                scores.append(0.5)
+            scores.append(_measure(metric, tc))
         result.runs.append(predictions_from_scores(rows, scores))
 
     return result

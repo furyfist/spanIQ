@@ -10,6 +10,7 @@ import os
 import pathlib
 import time
 
+from benchmarks.runners._judge import score_from_ten, with_retry
 from benchmarks.runners.spaniq_runner import (
     BenchmarkResult,
     LabeledResult,
@@ -58,21 +59,18 @@ def run_groq_eval(
                 reference=row.get("reference_output", ""),
                 output=row["output"],
             )
-            try:
-                resp = client.chat.completions.create(
+            resp = with_retry(
+                lambda p=prompt: client.chat.completions.create(
                     model=model,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=[{"role": "user", "content": p}],
                     max_tokens=5,
                     temperature=0.0,
                 )
-                raw = resp.choices[0].message.content.strip()
-                score = float(raw.split()[0]) / 10.0
-                scores.append(max(0.0, min(1.0, score)))
-                # Rough cost estimate: groq free tier but token counting for comparison
-                usage = resp.usage
-                cost += (usage.prompt_tokens * 0.27 + usage.completion_tokens * 0.27) / 1_000_000
-            except Exception:
-                scores.append(0.5)
+            )
+            scores.append(score_from_ten(resp.choices[0].message.content or ""))
+            # Groq is free tier; tokens are counted only for a cost comparison
+            usage = resp.usage
+            cost += (usage.prompt_tokens * 0.27 + usage.completion_tokens * 0.27) / 1_000_000
 
             # Minimal rate-limit courtesy sleep
             time.sleep(0.05)
@@ -87,23 +85,21 @@ def run_groq_eval(
 
 
 def _score_row(client, model, row) -> float:
-    """Judge one row, returning a 0-1 correctness score (0.5 on error)."""
+    """Judge one row, returning a 0-1 correctness score (raises JudgeError on failure)."""
     prompt = _JUDGE_PROMPT.format(
         question=row["input"],
         reference=row.get("reference_output", ""),
         output=row["output"],
     )
-    try:
-        resp = client.chat.completions.create(
+    resp = with_retry(
+        lambda: client.chat.completions.create(
             model=model,
             messages=[{"role": "user", "content": prompt}],
             max_tokens=5,
             temperature=0.0,
         )
-        raw = resp.choices[0].message.content.strip()
-        return max(0.0, min(1.0, float(raw.split()[0]) / 10.0))
-    except Exception:
-        return 0.5
+    )
+    return score_from_ten(resp.choices[0].message.content or "")
 
 
 def run_groq_predictions(

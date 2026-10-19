@@ -21,6 +21,7 @@ import pathlib
 import sys
 
 from benchmarks.config import DATASET_FILES, RESULTS_DIR
+from benchmarks.runners._judge import JudgeError
 from benchmarks.runners.spaniq_runner import BenchmarkResult, LabeledResult
 
 
@@ -34,22 +35,22 @@ def _run_tool_accuracy(
         "groq": (
             "benchmarks.runners.groq_runner",
             "run_groq_predictions",
-            (ImportError, EnvironmentError),
+            (ImportError, EnvironmentError, JudgeError),
         ),
         "deepeval": (
             "benchmarks.runners.deepeval_runner",
             "run_deepeval_predictions",
-            (ImportError, EnvironmentError),
+            (ImportError, EnvironmentError, JudgeError),
         ),
         "ragas": (
             "benchmarks.runners.ragas_runner",
             "run_ragas_predictions",
-            (ImportError, EnvironmentError, ValueError),
+            (ImportError, EnvironmentError, ValueError, JudgeError),
         ),
         "langfuse": (
             "benchmarks.runners.langfuse_runner",
             "run_langfuse_predictions",
-            (ImportError, EnvironmentError),
+            (ImportError, EnvironmentError, JudgeError),
         ),
     }
     if tool not in dispatch:
@@ -79,7 +80,7 @@ def _run_tool(
             from benchmarks.runners.groq_runner import run_groq_eval
 
             return run_groq_eval(dataset_path, n_runs=runs)
-        except (OSError, ImportError) as exc:
+        except (OSError, ImportError, JudgeError) as exc:
             print(f"    skipping groq: {exc}", file=sys.stderr)
             return None
     elif tool == "deepeval":
@@ -87,7 +88,7 @@ def _run_tool(
             from benchmarks.runners.deepeval_runner import run_deepeval_eval
 
             return run_deepeval_eval(dataset_path, n_runs=runs)
-        except (OSError, ImportError) as exc:
+        except (OSError, ImportError, JudgeError) as exc:
             print(f"    skipping deepeval: {exc}", file=sys.stderr)
             return None
     elif tool == "ragas":
@@ -95,7 +96,7 @@ def _run_tool(
             from benchmarks.runners.ragas_runner import run_ragas_eval
 
             return run_ragas_eval(dataset_path, n_runs=runs)
-        except (OSError, ImportError, ValueError) as exc:
+        except (OSError, ImportError, ValueError, JudgeError) as exc:
             print(f"    skipping ragas: {exc}", file=sys.stderr)
             return None
     elif tool == "langfuse":
@@ -103,7 +104,7 @@ def _run_tool(
             from benchmarks.runners.langfuse_runner import run_langfuse_eval
 
             return run_langfuse_eval(dataset_path, n_runs=runs)
-        except (OSError, ImportError) as exc:
+        except (OSError, ImportError, JudgeError) as exc:
             print(f"    skipping langfuse: {exc}", file=sys.stderr)
             return None
     else:

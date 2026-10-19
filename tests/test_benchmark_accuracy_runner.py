@@ -61,12 +61,15 @@ def test_ragas_uses_the_v04_ascore_api():
     assert not hasattr(faithfulness, "single_turn_ascore")
 
 
-def test_ragas_raises_when_every_item_fails(monkeypatch):
-    """A run where all items error is a broken integration, not data — it must
-    raise instead of reporting a full column of 0.5 fallbacks."""
+def test_ragas_raises_when_a_call_keeps_failing(monkeypatch):
+    """A judge call that still fails after retrying must raise instead of being
+    reported as a fabricated 0.5."""
     pytest.importorskip("ragas.metrics.collections")
     monkeypatch.setenv("GROQ_API_KEY", "test-key")
+    import benchmarks.runners._judge as judge
     import benchmarks.runners.ragas_runner as rr
+
+    monkeypatch.setattr(judge, "BASE_DELAY_SEC", 0.0)
 
     class _AlwaysFails:
         async def ascore(self, **kwargs):
@@ -74,7 +77,7 @@ def test_ragas_raises_when_every_item_fails(monkeypatch):
 
     monkeypatch.setattr(rr, "_get_ragas_llm", lambda: object())
     monkeypatch.setattr("ragas.metrics.collections.Faithfulness", lambda llm: _AlwaysFails())
-    with pytest.raises(RuntimeError, match="every call failed"):
+    with pytest.raises(judge.JudgeError, match="judge unreachable"):
         rr.run_ragas_predictions(DATASET_FILES["rag_retrieval"], n_runs=1)
 
 

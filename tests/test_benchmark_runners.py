@@ -68,7 +68,10 @@ def test_langfuse_parse_score():
 
     assert _parse_score('{"score": 8, "reasoning": "ok"}') == pytest.approx(0.8)
     assert _parse_score("rated 7 out of 10") == pytest.approx(0.7)
-    assert _parse_score("no number here") == pytest.approx(0.5)
+    from benchmarks.runners._judge import JudgeError
+
+    with pytest.raises(JudgeError):
+        _parse_score("no number here")
 
 
 def test_report_summary_md_contains_std_dev():

@@ -16,6 +16,7 @@ import pathlib
 import time
 
 from benchmarks.runners._cost import token_cost
+from benchmarks.runners._judge import JudgeError, awith_retry
 from benchmarks.runners.spaniq_runner import (
     BenchmarkResult,
     LabeledResult,
@@ -65,34 +66,40 @@ def _parse_score(text: str) -> float:
         match = re.search(r"\d+(?:\.\d+)?", text)
         if match:
             return min(float(match.group()) / 10.0, 1.0)
-        return 0.5
+        raise JudgeError(f"judge returned no score: {text!r}") from None
 
 
-async def _judge_one(client, model, row) -> tuple[float, int, int]:
+# Firing every row at once is what tripped Groq's rate limit and produced the
+# all-0.5 tables, so concurrency is capped.
+_MAX_CONCURRENCY = 4
+
+
+async def _judge_one(client, model, row, limit) -> tuple[float, int, int]:
     """Run one judge call; return (score 0-1, prompt_tokens, completion_tokens)."""
     prompt = _JUDGE_PROMPT.format(
         input=row["input"],
         expected=row.get("reference_output", ""),
         output=row["output"],
     )
-    try:
-        resp = await client.chat.completions.create(
-            model=model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.0,
+    async with limit:
+        resp = await awith_retry(
+            lambda: client.chat.completions.create(
+                model=model,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.0,
+            )
         )
-        text = (resp.choices[0].message.content or "").strip()
-        usage = resp.usage
-        return _parse_score(text), usage.prompt_tokens, usage.completion_tokens
-    except Exception:
-        return 0.5, 0, 0
+    text = (resp.choices[0].message.content or "").strip()
+    usage = resp.usage
+    return _parse_score(text), usage.prompt_tokens, usage.completion_tokens
 
 
 async def _judge_batch(client, model, rows) -> list[tuple[float, int, int]]:
     """Judge all rows concurrently."""
     import asyncio
 
-    return await asyncio.gather(*(_judge_one(client, model, r) for r in rows))
+    limit = asyncio.Semaphore(_MAX_CONCURRENCY)
+    return await asyncio.gather(*(_judge_one(client, model, r, limit) for r in rows))
 
 
 def _get_client():

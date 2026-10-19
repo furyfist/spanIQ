@@ -16,6 +16,7 @@ import pathlib
 import time
 
 from benchmarks.runners._cost import token_cost
+from benchmarks.runners._judge import awith_retry
 from benchmarks.runners.spaniq_runner import (
     BenchmarkResult,
     LabeledResult,
@@ -41,6 +42,18 @@ def _check_deps() -> None:
         ) from exc
     if not os.environ.get("GROQ_API_KEY"):
         raise OSError("GROQ_API_KEY not set")
+
+
+async def _ascore(scorer, row) -> float:
+    """Faithfulness for one row via the v0.4 `ascore` API; raises JudgeError on failure."""
+    res = await awith_retry(
+        lambda: scorer.ascore(
+            user_input=row["input"],
+            response=row["output"],
+            retrieved_contexts=[row.get("context", "")],
+        )
+    )
+    return float(res.value)
 
 
 def _get_ragas_llm():
@@ -85,18 +98,7 @@ def run_ragas_eval(dataset_path: str | pathlib.Path, n_runs: int = 5) -> Benchma
     result = BenchmarkResult(tool="ragas", dataset=path.stem)
 
     async def _score_all(scorer) -> list[float]:
-        out = []
-        for row in rows:
-            try:
-                res = await scorer.ascore(
-                    user_input=row["input"],
-                    response=row["output"],
-                    retrieved_contexts=[row.get("context", "")],
-                )
-                out.append(float(res.value))
-            except Exception:
-                out.append(0.5)
-        return out
+        return [await _ascore(scorer, row) for row in rows]
 
     # Faithfulness decomposes answer + context into claims; estimate judge cost
     # from the sample text (Groq is free, but we report the production-equivalent).
@@ -144,38 +146,11 @@ def run_ragas_predictions(dataset_path: str | pathlib.Path, n_runs: int = 5) -> 
     llm = _get_ragas_llm()
     result = LabeledResult(tool="ragas", dataset=path.stem)
 
-    async def _score_all(scorer) -> tuple[list[float], int]:
-        """Score every row. Returns (scores, n_failed).
-
-        The v0.4 collections API is `ascore(user_input, response,
-        retrieved_contexts) -> MetricResult`. A per-item failure degrades to the
-        neutral 0.5, but a run where *every* item failed is a broken integration,
-        not data — the caller raises rather than reporting fabricated scores.
-        """
-        out: list[float] = []
-        failed = 0
-        for row in rows:
-            try:
-                res = await scorer.ascore(
-                    user_input=row["input"],
-                    response=row["output"],
-                    retrieved_contexts=[row.get("context", "")],
-                )
-                out.append(float(res.value))
-            except Exception:
-                out.append(0.5)
-                failed += 1
-        return out, failed
+    async def _score_all(scorer) -> list[float]:
+        return [await _ascore(scorer, row) for row in rows]
 
     for _ in range(n_runs):
         scorer = Faithfulness(llm=llm)
-        scores, failed = asyncio.run(_score_all(scorer))
-        if failed == len(rows):
-            raise RuntimeError(
-                "ragas scored 0 of "
-                f"{len(rows)} items — every call failed, so the run would report "
-                "fabricated 0.5 fallbacks. Check the ragas/Groq llm_factory interop."
-            )
-        result.runs.append(predictions_from_scores(rows, scores))
+        result.runs.append(predictions_from_scores(rows, asyncio.run(_score_all(scorer))))
 
     return result
