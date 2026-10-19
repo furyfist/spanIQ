@@ -95,3 +95,16 @@ def test_competitor_prediction_runners_skip_without_key(monkeypatch):
         run_langfuse_predictions(QA_PATH, n_runs=1)
     with pytest.raises((ImportError, EnvironmentError, ValueError)):
         run_ragas_predictions(rag_path, n_runs=1)
+
+
+@pytest.mark.parametrize("name", ["summarization", "rag_retrieval"])
+def test_good_rows_are_not_the_reference_verbatim(name):
+    """Regression: a good output identical to the reference scores a guaranteed
+    1.0 on any similarity metric, which made spanIQ's F1 on these sets a label leak."""
+    import json
+
+    with open(DATASET_FILES[name], encoding="utf-8") as fh:
+        rows = [json.loads(line) for line in fh if line.strip()]
+    good = [r for r in rows if r["label"] == "good"]
+    assert good
+    assert all(r["output"] != r["reference_output"] for r in good)

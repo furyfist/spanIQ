@@ -45,7 +45,11 @@ Each labeled row adds two fields to the seed schema:
 
 ### summarization.jsonl — 16 rows (8 good / 8 bad)
 
-- **good**: the seed's reference summary, verbatim.
+- **good**: a hand-written paraphrase of the reference summary (`SUMM_GOOD`)
+  carrying the same facts in different words. Until 2026-10 the good row was
+  the reference copied verbatim, which let any similarity metric score it
+  exactly 1.0; that label leak is why the old spanIQ F1 of 1.0 on this set was
+  not a real result.
 - **bad**, alternating by index:
   - `omission` — the summary is clipped to its first clause, dropping required
     facts present in the reference.
@@ -54,7 +58,8 @@ Each labeled row adds two fields to the seed schema:
 
 ### rag_retrieval.jsonl — 16 rows (8 good / 8 bad)
 
-- **good**: the seed's context-faithful answer, verbatim.
+- **good**: a hand-written, context-faithful paraphrase of the reference answer
+  (`RAG_GOOD`), for the same label-leak reason as summarization.
 - **bad**, alternating by index:
   - `unfaithful_to_context` — a claim attributed to a "2050 government study not
     present in the passage" is appended, so the answer cites something absent from

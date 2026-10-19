@@ -299,6 +299,54 @@ QA_EXTRA = [
 ]
 
 
+# --- summarization / rag_retrieval: hand-written correct paraphrases --------
+# The good rows used to be the reference copied verbatim, so any similarity
+# metric scored them exactly 1.0 and the "perfect" F1 was a label leak. Each
+# good output is now a faithful paraphrase carrying the same facts in different
+# words, aligned by index with the seed rows.
+SUMM_GOOD = [
+    "Researchers found a previously unknown fish in the Pacific more than 8,000 meters down; "
+    "it glows and is see-through, and the find may matter for astrobiology.",
+    "Councillors signed off on a downtown scheme: a mixed-use tower holding 400 residences, "
+    "shops and a public square, with building work due to begin in the spring.",
+    "A team at MIT built a lithium-sulfur cell able to charge a phone in less than two "
+    "minutes with three times lithium-ion's energy density; it should reach the market in "
+    "about five years.",
+    "The Greenfield Accord, signed by 195 countries, commits them to cutting carbon emissions "
+    "45% by 2035 and funds renewables in developing nations, but questions about enforcement "
+    "persist.",
+    "In its first month the startup FoodBridge, whose app connects food banks with surplus "
+    "restaurant food, moved 50,000 meals and raised $3M to grow across the country.",
+    "Arriving in 2031, the European Space Agency's JUICE probe will examine Europa and "
+    "Ganymede, searching for hidden oceans beneath their surfaces and possible microbial life.",
+    "Collecting behavioral data now needs explicit consent after a court decision that allows "
+    "fines of up to 4% of worldwide revenue, the biggest privacy ruling in ten years.",
+    "Updated health advice calls for 150 minutes of exercise a week, notes that inactivity "
+    "raises heart disease risk by 30%, and asks employers to encourage movement.",
+]
+
+RAG_GOOD = [
+    "Charged particles from the Sun strike oxygen and nitrogen high in the atmosphere close "
+    "to the magnetic poles, and that collision produces the Northern Lights.",
+    "Solar power is renewable and emits no greenhouse gases while generating electricity, and "
+    "panel prices have dropped by more than 90% over the past ten years.",
+    "The usual advice is a minimum of eight glasses of water a day at 8 ounces each, although "
+    "the right amount depends on body weight, exercise and climate.",
+    "Instead of obeying rules written by a programmer, machine learning picks up patterns from "
+    "data on its own and gets better as it sees more of it.",
+    "For building wealth over the long run, cheap index funds bought through dollar-cost "
+    "averaging are advised because they diversify, keep fees low and tend to beat active "
+    "managers.",
+    "Getting under seven hours of sleep hurts memory, judgment and reaction speed, and "
+    "long-term sleep loss increases Alzheimer's risk because less amyloid is cleared during "
+    "deep sleep.",
+    "Data scientists mostly use Python thanks to its easy-to-read syntax, packages such as "
+    "NumPy and PyTorch, and its large community.",
+    "Working remotely raises staff satisfaction and work-life balance and cuts costs and "
+    "turnover for companies, but teams need good communication tools to stay cohesive.",
+]
+
+
 def _load(name: str) -> list[dict]:
     rows = []
     with open(HERE / name, encoding="utf-8") as fh:
@@ -340,12 +388,12 @@ def build_qa_factual() -> list[dict]:
 
 
 def build_summarization() -> list[dict]:
-    """Good = the reference summary. Bad = a summary that drops a key fact
-    (omission) or injects a fact not in the source (hallucination), alternating."""
+    """Good = a faithful paraphrase of the reference. Bad = a summary that drops a key
+    fact (omission) or injects a fact not in the source (hallucination), alternating."""
     labeled: list[dict] = []
     rows = _load("summarization_seed.jsonl")
-    for i, row in enumerate(rows):
-        labeled.append(_good(row))
+    for i, (row, good_out) in enumerate(zip(rows, SUMM_GOOD, strict=True)):
+        labeled.append(_good({**row, "output": good_out}))
         ref = row["reference_output"]
         if i % 2 == 0:
             # omission: keep only the first clause, dropping later required facts
@@ -359,12 +407,12 @@ def build_summarization() -> list[dict]:
 
 
 def build_rag_retrieval() -> list[dict]:
-    """Good = context-faithful answer. Bad = a claim not supported by the
+    """Good = a context-faithful paraphrase. Bad = a claim not supported by the
     retrieved context (unfaithful_to_context) or a direct contradiction."""
     labeled: list[dict] = []
     rows = _load("rag_retrieval_seed.jsonl")
-    for i, row in enumerate(rows):
-        labeled.append(_good(row))
+    for i, (row, good_out) in enumerate(zip(rows, RAG_GOOD, strict=True)):
+        labeled.append(_good({**row, "output": good_out}))
         ref = row["reference_output"]
         if i % 2 == 0:
             bad = (
