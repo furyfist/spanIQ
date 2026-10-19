@@ -4,8 +4,6 @@ import json
 import logging
 import time
 from collections.abc import Iterator
-from datetime import datetime, timezone
-from uuid import uuid4
 
 from spaniq.monitor.collectors.base import BaseCollector
 from spaniq.monitor.trace import Trace
@@ -66,36 +64,4 @@ class FileCollector(BaseCollector):
         if "input" not in obj or "output" not in obj:
             logger.warning("FileCollector: skipping line missing input/output: %r", line[:80])
             return None
-        components = None
-        if "components" in obj and isinstance(obj["components"], list):
-            from spaniq.attribution.component import ComponentKind, ComponentSpan
-
-            spans = []
-            for c in obj["components"]:
-                if not isinstance(c, dict) or "name" not in c or "output" not in c:
-                    continue
-                kind_str = c.get("kind", "default")
-                try:
-                    kind = ComponentKind(kind_str)
-                except ValueError:
-                    kind = ComponentKind.DEFAULT
-                spans.append(
-                    ComponentSpan(
-                        name=c["name"],
-                        kind=kind,
-                        output=c["output"],
-                        latency_ms=c.get("latency_ms"),
-                        error=bool(c.get("error", False)),
-                        metadata=c.get("metadata"),
-                    )
-                )
-            if spans:
-                components = spans
-        return Trace(
-            input=obj["input"],
-            output=obj["output"],
-            trace_id=obj.get("trace_id") or str(uuid4()),
-            timestamp=obj.get("timestamp") or datetime.now(timezone.utc).isoformat(),
-            metadata=obj.get("metadata"),
-            components=components,
-        )
+        return Trace.from_dict(obj)
